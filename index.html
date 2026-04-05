@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مظلات الأطلسي | حماية فاخرة لسيارتك</title>
+    <meta name="description" content="منصة مظلات الأطلسي - تجربة شراء مظلة فاخرة تشبه تصميم سيارتك. فخامة وتحكم كامل!">
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=Tajawal:wght@300;400;500;700;800;900&family=Almarai:wght@300;400;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="particles-canvas"></canvas>
+
+    <header class="header">
+        <div class="logo">
+            <img src="image/logo/72673ecd-fec0-44e8-ab40-c520e10e98a7.jpg" alt="شعار الأطلسي" class="logo-img">
+            <h2>الأطلسي</h2>
+        </div>
+        <nav class="nav-links">
+            <a href="#">الرئيسية</a>
+            <a href="#">تصاميمنا</a>
+            <a href="#">عن الأطلسي</a>
+            <a href="#">تواصل</a>
+        </nav>
+        <button class="btn btn-primary btn-sm" onclick="app.goToStep(1)">اطلب الآن ←</button>
+    </header>
+
+    <main id="app-container">
+        <!-- Landing Section -->
+        <section id="landing" class="view active">
+            <div class="hero">
+                <div class="tagline">✦ مظلات فاخرة مضمونة</div>
+                <h1 class="hero-title staggered-reveal">احمِ سيارتك<br>بأسلوب لا يُنسى</h1>
+                
+                <div class="hero-images">
+                    <div class="image-placeholder parallax-wrapper" id="hero-img-wrapper">
+                        <div class="glow-bg"></div>
+                        <img id="hero-image" src="image/fa097bdf-2a83-44c8-876c-6ca6cdf4dec7.jpg" alt="مظلة سيارة" />
+                    </div>
+                </div>
+
+                <div class="hero-price-box">
+                    <div class="price-left">
+                        <p>التركيب خلال أسبوع</p>
+                        <p class="text-beige">أو مجاناً</p>
+                    </div>
+                    <div class="price-right">
+                        <p>ابتداءً من</p>
+                        <p class="price-number">999 ريال</p>
+                     </div>
+                </div>
+
+                <div class="actions center mt-4">
+                    <button class="btn btn-primary btn-large pop-btn" onclick="app.goToStep(1)">▶ اطلب مظلتك الآن</button>
+                    <button class="btn btn-secondary btn-large pop-btn">● شاهد أعمالنا ↓</button>
+                </div>
+            </div>
+            
+            <!-- Ticker -->
+            <div class="ticker-wrap mt-4">
+                <div class="ticker">
+                    <div class="ticker-item">✦ تصميم هرمي</div>
+                    <div class="ticker-item">✦ تصميم مقوس</div>
+                    <div class="ticker-item">✦ تصميم كابولي</div>
+                    <div class="ticker-item">✦ ضمان 5 سنوات</div>
+                    <div class="ticker-item">✦ تابي / تمارا</div>
+                    <div class="ticker-item">✦ تركيب احترافي</div>
+                </div>
+            </div>
+
+            <!-- Trust Bar -->
+            <div class="trust-indicators glass-panel mt-4">
+                <div class="trust-item">
+                    <h3 class="counter" data-target="247">0</h3>
+                    <p>مشروع منجز</p>
+                    <span class="star">✦</span>
+                </div>
+                <div class="trust-item">
+                    <h3 class="counter" data-target="5">0</h3>
+                    <p>سنوات ضمان</p>
+                    <span class="star">✦</span>
+                </div>
+                <div class="trust-item">
+                    <h3>999 ريال</h3>
+                    <p>ابتداءً</p>
+                    <span class="star">✦</span>
+                </div>
+                <div class="trust-item">
+                    <h3 class="text-gold">tabby</h3>
+                    <p>تقسيط</p>
+                    <span class="star">✦</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- WIZARD HEADER (Hidden on landing) -->
+        <div id="wizard-header" class="wizard-header hidden">
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+            <div class="steps-labels">
+                <span>بياناتك</span>
+                <span>التصميم</span>
+                <span>الحجم</span>
+                <span>التثبيت</span>
+                <span>الألوان</span>
+                <span>تأكيد</span>
+                <span>الموقع</span>
+            </div>
+        </div>
+
+        <!-- Wizard Step 1: Customer Info -->
+        <section id="step-1" class="view split-view">
+            <div class="step-content form-glass">
+                <h2 class="step-title">✦ أهلاً بك في مظلات الأطلسي ✦</h2>
+                <p class="step-desc">سنساعدك في تصميم مظلتك المثالية<br>في أقل من 3 دقائق</p>
+                <div class="form-group form-focused">
+                    <label>👤 اسمك الكريم</label>
+                    <input type="text" id="customer-name" placeholder="أحمد محمد" required>
+                </div>
+                <div class="form-group">
+                    <label>📱 رقم جوالك</label>
+                    <input type="tel" id="customer-phone" placeholder="05XXXXXXXX" required>
+                    <span class="error-msg" id="phone-error">الرجاء إدخال رقم صحيح</span>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-primary btn-full pulse-btn" id="btn-next-1" disabled>ابدأ رحلة التصميم ←</button>
+                </div>
+                <p class="security-text text-center mt-3 text-muted">🔒 بياناتك محمية ولن تُشارَك مع أي جهة</p>
+            </div>
+        </section>
+
+        <!-- Wizard Step 2: Design -->
+        <section id="step-2" class="view">
+            <h2 class="step-title">اختر التصميم الذي يناسب ذوقك</h2>
+            <div class="cards-grid 3d-container" id="design-options">
+                <div class="card selectable interactive-3d" data-value="pyramid">
+                    <div class="card-inner">
+                        <img src="image/03b8235e-ceff-4d36-8575-16d5404c1882.jpg" alt="هرمي">
+                        <div class="card-content">
+                            <h3>التصميم الهرمي</h3>
+                            <p>سقف مثلثي حديث ومميز</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card selectable interactive-3d gold-glow" data-value="arch">
+                    <div class="badge">⭐ الأكثر طلباً</div>
+                    <div class="card-inner">
+                        <img src="image/0adab1e7-4276-4004-88da-f0793b03375f.jpg" alt="مقوس">
+                        <div class="card-content">
+                            <h3>التصميم المقوس</h3>
+                            <p>خطوط منحنية أنيقة وفاخرة</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card selectable interactive-3d" data-value="cantilever">
+                    <div class="card-inner">
+                        <img src="image/10fe24c8-76b7-4c7d-aad1-69a05bf9d0c5.jpg" alt="كابولي">
+                        <div class="card-content">
+                            <h3>التصميم الكابولي</h3>
+                            <p>على الجدار بلا أعمدة أمامية</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="app.prevStep()">رجوع</button>
+                <button class="btn btn-primary" id="btn-next-2" disabled>متابعة</button>
+            </div>
+        </section>
+
+        <!-- Wizard Step 3: Size -->
+        <section id="step-3" class="view">
+            <h2 class="step-title">ما هو حجم سيارتك؟</h2>
+            <div class="cards-grid" id="size-options">
+                <div class="card selectable interactive-3d" data-value="big">
+                    <div class="card-content">
+                        <h3 class="text-gold">حجم كبير (Big)</h3>
+                        <div class="divider"></div>
+                        <p>SUV ● لاندكروز<br>باترول ● تاهو</p>
+                        <span class="dim">5.5م × 3.5م</span>
+                    </div>
+                </div>
+                <div class="card selectable interactive-3d" data-value="small">
+                    <div class="card-content">
+                        <h3 class="text-beige">حجم صغير (Small)</h3>
+                        <div class="divider"></div>
+                        <p>سيدان ● كامري<br>التيما ● كورولا</p>
+                        <span class="dim">5م × 3م</span>
+                    </div>
+                </div>
+            </div>
+            <p class="text-center mt-3 text-beige-light">💡 غير متأكد؟ المندوب سيقيس الموقع مجاناً</p>
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="app.prevStep()">رجوع</button>
+                <button class="btn btn-primary" id="btn-next-3" disabled>متابعة</button>
+            </div>
+        </section>
+
+        <!-- Wizard Step 4: Mounting -->
+        <section id="step-4" class="view">
+            <h2 class="step-title">كيف ستُثبَّت المظلة؟</h2>
+            <div class="cards-grid" id="mounting-options">
+                <div class="card selectable interactive-3d" data-value="wall">
+                    <img src="image/16fce15f-22bf-4a2a-abc9-fe0b6717a51d.jpg" alt="معلقة" />
+                    <div class="card-content">
+                        <h3>معلقة</h3>
+                        <p>مثبتة على الجدار بدون أعمدة أمامية. مثالية للجراجات الملاصقة للجدار.</p>
+                    </div>
+                </div>
+                <div class="card selectable interactive-3d" data-value="ground">
+                    <img src="image/218d1b4f-6360-4f30-b2a5-13b2860b1c53.jpg" alt="أعمدة" />
+                    <div class="card-content">
+                        <h3>على أعمدة</h3>
+                        <p>أعمدة في الأرض. مناسبة للفضاء المفتوح والمواقف المفتوحة.</p>
+                    </div>
+                </div>
+            </div>
+            <p class="text-center mt-3 text-beige-light">ℹ️ المندوب سيتأكد من صلاحية الموقع عند الزيارة</p>
+            <div class="actions">
+                <button class="btn btn-secondary" onclick="app.prevStep()">رجوع</button>
+                <button class="btn btn-primary" id="btn-next-4" disabled>متابعة</button>
+            </div>
+        </section>
+
+        <!-- Wizard Step 5: Colors Studio -->
+        <section id="step-5" class="view">
+            <h2 class="step-title">صمّم مظلتك بألوانك المفضلة</h2>
+            
+            <div class="color-studio-grid">
+                <div class="live-preview-box">
+                    <img id="live-color-preview" src="image/5bfe30d6-3629-419e-92f0-5663abadf921.jpg" alt="معاينة حية">
+                </div>
+                <div class="color-selection-panel glass-panel">
+                    <div class="color-section">
+                        <h3>لون القماش</h3>
+                        <div class="color-options" id="fabric-colors">
+                            <div class="color-circle" data-value="beige" style="background-color: #C9A96E;" title="بيج رملي"></div>
+                            <div class="color-circle" data-value="gray" style="background-color: #C0B9A8;" title="رمادي فاتح"></div>
+                            <div class="color-circle" data-value="white" style="background-color: #F5F0E8;" title="أبيض נקי"></div>
+                        </div>
+                        <p id="fabric-label" class="color-label">اختر اللون</p>
+                    </div>
+
+                    <div class="color-section mt-4">
+                        <h3>لون الهيكل</h3>
+                        <div class="color-options" id="frame-colors">
+                            <div class="color-circle" data-value="beige" style="background-color: #D4C4A0;" title="بيج / شامبين"></div>
+                            <div class="color-circle" data-value="black" style="background-color: #1A1A1A; border: 1px solid #444;" title="أسود فاخر"></div>
+                        </div>
+                        <p id="frame-label" class="color-label">اختر اللون</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="actions mt-4">
+                <button class="btn btn-secondary" onclick="app.prevStep()">رجوع</button>
+                <button class="btn btn-primary" id="btn-next-5" disabled>متابعة لملخص الطلب</button>
+            </div>
+        </section>
+
+        <!-- Wizard Step 6: Summary -->
+        <section id="step-6" class="view">
+            <div class="summary-card-lux">
+                <h2 class="step-title text-center block">✦ ملخص طلبك المبدئي ✦</h2>
+                <div class="summary-details">
+                    <ul class="summary-list lux-list">
+                        <li><span>التصميم:</span> <span id="sum-design" class="text-gold">-</span></li>
+                        <li><span>الحجم:</span> <span id="sum-size" class="text-beige">-</span></li>
+                        <li><span>التثبيت:</span> <span id="sum-mounting" class="text-beige">-</span></li>
+                        <li><span>لون القماش:</span> <span id="sum-fabric" class="text-beige">-</span></li>
+                        <li><span>لون الهيكل:</span> <span id="sum-frame" class="text-beige">-</span></li>
+                    </ul>
+                    
+                    <div class="summary-divider"></div>
+                    
+                    <div class="payment-info">
+                        <p class="text-muted">الدفعة الأولى لحجز موعد المندوب:</p>
+                        <h2 class="price-huge text-gold">999 ريال فقط</h2>
+                        <div class="payment-partners mt-3">
+                            <span class="text-beige-light">قسّط على 4 دفعات × 250 ريال عبر <strong>tabby</strong> أو <strong>tamara</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="actions stacked center">
+                <button class="btn btn-primary btn-large pop-btn" onclick="app.goToStep(7)">✓ تأكيد الطلب والمتابعة</button>
+                <div class="row-actions">
+                    <button class="btn btn-secondary" onclick="app.goToStep(2)">✏️ تعديل الاختيارات</button>
+                    <button class="btn btn-text cancel-btn" onclick="app.cancelOrder()">✗ إلغاء الطلب</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Wizard Step 7: Location -->
+        <section id="step-7" class="view">
+            <h2 class="step-title">📍 أين سنركّب مظلتك؟</h2>
+            <div class="map-wrapper glass-panel">
+                <div id="map" class="map-container dark-mode">
+                    <!-- Fake Dark Map background using an image -->
+                    <img src="image/77556bcc-093f-4cce-9bbf-cdfad275b19d.jpg" style="opacity: 0.3; object-fit:cover; width:100%; height:100%;" />
+                    <div class="map-marker-fake">📍</div>
+                </div>
+                <div class="map-overlay-btn">
+                    <button class="btn btn-secondary btn-full map-btn" onclick="app.getLocation()">📍 حدد موقعي تلقائياً</button>
+                </div>
+            </div>
+            
+            <div class="form-group mt-4">
+                <label>العنوان بالتفصيل</label>
+                <input type="text" id="order-address" placeholder="جاري التحديد..." />
+            </div>
+            <div class="form-group">
+                <label>ملاحظات أخرى (اختياري)</label>
+                <textarea id="order-notes" rows="3" placeholder="أية تفاصيل لوصول المندوب..."></textarea>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-primary btn-large btn-full pulse-btn" onclick="app.submitOrder()">✓ إرسال الطلب وإكمال</button>
+            </div>
+        </section>
+
+        <!-- Confirmation -->
+        <section id="confirmation" class="view text-center">
+            <div class="success-icon pop-in">✨</div>
+            <h2 class="step-title text-gold mt-4">شكراً لك!</h2>
+            <p class="step-desc text-beige">تم استلام طلبك بنجاح وسنتواصل معك قريباً</p>
+            
+            <div class="order-number-box gold-border-anim">
+                <p>رقم الطلب الخاص بك</p>
+                <h3 id="final-order-number">#ATL-2026-0001</h3>
+            </div>
+            
+            <div class="glass-panel mt-4 padding-md text-right">
+                <ul class="confirm-list">
+                    <li><span class="text-gold">✓</span> سيتواصل معك فريقنا خلال 2 ساعة لتأكيد الموعد</li>
+                    <li><span class="text-gold">✓</span> سيزورك المندوب خلال 12 ساعة لأخذ المقاسات الدقيقة</li>
+                    <li><span class="text-gold">✓</span> التركيب خلال 7 أيام من اعتماد القياسات</li>
+                </ul>
+            </div>
+            
+            <div class="actions mt-4 center">
+                <button class="btn btn-primary btn-large" onclick="window.location.reload()">العودة للرئيسية</button>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Floating WhatsApp -->
+    <a href="#" class="float-wa" title="تواصل عبر واتساب">
+        <svg fill="#fff" viewBox="0 0 24 24" width="28" height="28"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.052 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+    </a>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-brand">
+                <img src="image/logo/72673ecd-fec0-44e8-ab40-c520e10e98a7.jpg" alt="الشعار" width="40" style="border-radius:8px;">
+                <h3 class="text-beige">مظلات الأطلسي</h3>
+                <p class="text-muted text-sm block mt-2">حماية فاخرة لسيارتك</p>
+            </div>
+            <div class="footer-links">
+                <div>
+                    <h4 class="text-beige-light mb-3">الروابط</h4>
+                    <ul>
+                        <li><a href="#">الرئيسية</a></li>
+                        <li><a href="#">المعرض</a></li>
+                        <li><a href="#">اطلب الآن</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="text-beige-light mb-3">التصاميم</h4>
+                    <ul>
+                        <li><a href="#">هرمي</a></li>
+                        <li><a href="#">مقوس</a></li>
+                        <li><a href="#">كابولي</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2026 مظلات الأطلسي — جميع الحقوق محفوظة</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>
