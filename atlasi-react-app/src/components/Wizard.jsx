@@ -278,9 +278,10 @@ const LocationMarker = ({ position, setPosition }) => {
 };
 
 const Step7 = () => {
-    const { address, updateField, nextStep, prevStep } = useStore();
+    const { address, customerName, customerPhone, design, size, mounting, fabricColor, frameColor, updateField, nextStep, prevStep } = useStore();
     const defaultCenter = [24.7136, 46.6753]; // Riyadh Center
     const [position, setPosition] = useState(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleMapClick = (latlng) => {
        setPosition(latlng);
@@ -295,6 +296,34 @@ const Step7 = () => {
                 updateField('address', `موقعي الحالي عبر GPS`);
             });
         }
+    };
+
+    const submitOrder = () => {
+       setIsSubmitting(true);
+       const payload = {
+           clientName: customerName,
+           clientPhone: customerPhone,
+           designType: design,
+           sizeInfo: size,
+           fixationType: mounting,
+           fabricColor: `${fabricColor} / الحديد: ${frameColor}`
+       };
+
+       fetch('http://localhost:8080/api/admin/requests', {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify(payload)
+       })
+       .then(res => res.json())
+       .then(data => {
+           updateField('finalId', data.id); // Save backend returned ID
+           nextStep();
+       })
+       .catch(err => {
+           console.error("Erreur serveur:", err);
+           alert("Une erreur est survenue lors de l'envoi. Veuillez réessayer.");
+       })
+       .finally(() => setIsSubmitting(false));
     };
 
     return (
@@ -327,15 +356,17 @@ const Step7 = () => {
         </div>
 
         <div className="btn-row" style={{ display: 'flex', gap: '1rem', justifyContent: 'space-between' }}>
-          <button className="btn btn-secondary" onClick={prevStep}>رجوع →</button>
-          <button className="btn btn-primary" onClick={nextStep} disabled={!address}>إرسال الموقع النهائي 🚀</button>
+          <button className="btn btn-secondary" onClick={prevStep} disabled={isSubmitting}>رجوع →</button>
+          <button className="btn btn-primary" onClick={submitOrder} disabled={!address || isSubmitting}>
+             {isSubmitting ? 'جاري الإرسال...' : 'إرسال الموقع النهائي 🚀'}
+          </button>
         </div>
       </div>
     );
 };
 
 const Confirmation = () => {
-    const { setStep } = useStore();
+    const { setStep, finalId } = useStore();
     return (
       <div className="card-base" style={{ textAlign: 'center', padding: '3rem 1.5rem', background: '#FFFFFF', maxWidth: '600px', margin: '0 auto', border: '1px solid var(--gold)' }}>
          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.5 }} style={{ fontSize: '4rem', marginBottom: '1rem' }}>📍</motion.div>
@@ -348,7 +379,7 @@ const Confirmation = () => {
 
          <div style={{ background: 'var(--bg-void)', padding: '1rem', borderRadius: '15px', display: 'inline-block', marginBottom: '2rem', border: '1px dashed var(--gold)' }}>
             <p className="text-gray" style={{ marginBottom: '0.3rem', fontSize: '0.9rem' }}>رقم الطلب الخاص بك</p>
-            <h3 style={{ fontFamily: 'var(--font-numbers)', letterSpacing: 2, color: 'var(--gold)' }}>#ATL-2026-0247</h3>
+            <h3 style={{ fontFamily: 'var(--font-numbers)', letterSpacing: 2, color: 'var(--gold)' }}>#REQ-{finalId || 'PENDING'}</h3>
          </div>
          
          <div>
