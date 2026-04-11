@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
 import { FiCheck, FiMapPin } from 'react-icons/fi';
@@ -11,12 +11,64 @@ const slideVariants = {
   exit: { x: -40, opacity: 0, transition: { duration: 0.4 } }
 };
 
-const Wizard = () => {
-  const { currentStep } = useStore();
-  const stepLabels = ['بياناتك', 'التصميم', 'الحجم', 'التثبيت', 'الألوان', 'تأكيد', 'موقعك'];
+const getDesignCandidates = (design, color = 'beige') => [
+  color === 'noir' ? `/image/design_${design}_noir.jpg` : `/image/design_${design}_beige.jpg`,
+  color === 'noir' ? `/image/${design}_noir.jpg` : `/image/${design}.jpg`,
+  design === 'sahra' ? '/image/sahara.jpeg' : `/image/${design}.jpg`
+];
+
+const getSizeCandidates = (design, size, color = 'beige') => [
+  `/image/${design}_${size}_${color}.jpg`,
+  `/image/${design}_${size}.jpg`,
+  `/image/${design}.jpg`,
+  '/image/sahara.jpeg'
+];
+
+const getFixationCandidates = (design, size, mounting, color = 'beige') => [
+  `/image/${design}_${size}_${mounting}_${color}.jpg`,
+  `/image/${design}_${size}_${color}.jpg`,
+  `/image/${design}_${size}.jpg`,
+  `/image/${design}.jpg`,
+  '/image/sahara.jpeg'
+];
+
+const getFinalCandidates = (design, size, mounting, color = 'beige') => {
+  if (!design || !size) return ['/image/sahara.jpeg'];
+  if (design === 'sahra' || design === 'neom' || !mounting) return getSizeCandidates(design, size, color);
+  return getFixationCandidates(design, size, mounting, color);
+};
+
+const SmartPreviewImage = ({ candidates, label, height = '230px', fit = 'contain', bg = '#F8F8F8' }) => {
+  const [idx, setIdx] = useState(0);
+  const src = candidates[Math.min(idx, candidates.length - 1)];
 
   return (
-    <div style={{ maxWidth: '800px', margin: '0 auto', paddingTop: '2rem' }}>
+    <div style={{ width: '100%', height, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <img
+        src={src}
+        alt={label}
+        onError={() => setIdx((i) => (i < candidates.length - 1 ? i + 1 : i))}
+        style={{ width: '100%', height: '100%', objectFit: fit, padding: fit === 'contain' ? '0.4rem' : 0 }}
+      />
+    </div>
+  );
+};
+
+const Wizard = () => {
+  const { currentStep } = useStore();
+  const wizardTopRef = useRef(null);
+  const stepLabels = ['بياناتك', 'التصميم', 'الحجم', 'التثبيت', 'الألوان', 'تأكيد', 'موقعك'];
+
+  useEffect(() => {
+    if (wizardTopRef.current) {
+      wizardTopRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentStep]);
+
+  return (
+    <div ref={wizardTopRef} style={{ maxWidth: '800px', margin: '0 auto', paddingTop: '2rem' }}>
       
       {currentStep > 0 && currentStep < 8 && (
         <div style={{ marginBottom: '2rem', padding: '0 1.5rem' }}>
@@ -98,23 +150,24 @@ const Step1 = () => {
 };
 
 const Step2 = () => {
-  const { design, updateField, nextStep, prevStep } = useStore();
+  const { design, color, updateField, nextStep, prevStep } = useStore();
   const opts = [
-    { id: 'التصميم الهرمي', label: 'التصميم الهرمي', img: '/image/03b8235e-ceff-4d36-8575-16d5404c1882.jpg', desc: 'سقف مثلثي كلاسيكي' },
-    { id: 'التصميم المقوس', label: 'التصميم المقوس', img: '/image/0adab1e7-4276-4004-88da-f0793b03375f.jpg', desc: 'خطوط منحنية ناعمة' },
-    { id: 'كابولي بدون أعمدة', label: 'كابولي بدون أعمدة', img: '/image/10fe24c8-76b7-4c7d-aad1-69a05bf9d0c5.jpg', desc: 'تثبيت جداري أنيق' }
+    { id: 'sahra', label: 'صحراء', desc: 'تصميم متوازن بطابع أصيل' },
+    { id: 'malaki', label: 'ملكي', desc: 'خطوط منحنية بلمسة راقية' },
+    { id: 'neom', label: 'نيوم', desc: 'تصميم عصري بواجهة حديثة' }
   ];
 
   return (
     <div>
-      <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>فضالً، اختر التصميم الرئيسي الذي يناسب واجهة بيتك ✨</h2>
-      <div className="grid-responsive" style={{ marginBottom: '2rem' }}>
+      <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>فضلًا، اختر التصميم الرئيسي الذي يناسبك ✨</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
         {opts.map(opt => (
           <div key={opt.id} className={`card-base ${design===opt.id ? 'card-selected' : ''}`} onClick={() => updateField('design', opt.id)} style={{ cursor: 'pointer', textAlign: 'center', background: '#FFFFFF' }}>
-            <img src={opt.img} style={{ width: '100%', height: '180px', objectFit: 'cover' }} />
+            <SmartPreviewImage candidates={getDesignCandidates(opt.id, color || 'beige')} label={opt.label} height="230px" fit="contain" />
             <div style={{ padding: '1rem' }}>
               <h3 style={{ marginBottom: '0.2rem', fontSize: '1.2rem' }}>{opt.label}</h3>
               <p className="text-gray" style={{ fontSize: '0.9rem' }}>{opt.desc}</p>
+              <button className="btn btn-secondary btn-full" style={{ marginTop: '0.8rem' }}>اختيار التصميم</button>
             </div>
           </div>
         ))}
@@ -129,20 +182,23 @@ const Step2 = () => {
 
 
 const Step3 = () => {
-    const { size, updateField, nextStep, prevStep } = useStore();
+    const { size, design, color, updateField, nextStep, prevStep } = useStore();
     return (
       <div>
         <h2 style={{ textAlign: 'center', marginBottom: '2rem', lineHeight: '1.5' }}>
            ممتاز، اختيار موفق! 👏<br/> بناءً على التصميم الذي اخترته، ما هو المقاس المناسب لسيارتك؟
         </h2>
-        <div className="grid-responsive" style={{ marginBottom: '2.5rem' }}>
-          <div className={`card-base ${size==='حجم عائلي (SUV)'?'card-selected':''}`} onClick={()=>updateField('size','حجم عائلي (SUV)')} style={{ padding: '2.5rem 1.5rem', textAlign: 'center', cursor: 'pointer', background: '#FFF' }}>
-             <h3 style={{ fontSize: '1.5rem', color: 'var(--gold)', marginBottom: '1rem' }}>حجم عائلي (SUV) 🚙</h3>
-             <p className="text-gray" style={{ fontSize: '0.95rem'}}>لاندكروز، باترول، تاهو<br/>5.5م × 3.5م</p>
+        {size && design && (
+          <div style={{ marginBottom: '2rem', borderRadius: '15px', overflow: 'hidden' }}>
+             <SmartPreviewImage candidates={getSizeCandidates(design, size, color || 'beige')} label="معاينة الحجم" height="250px" fit="contain" />
           </div>
-          <div className={`card-base ${size==='حجم عادي (سيدان)'?'card-selected':''}`} onClick={()=>updateField('size','حجم عادي (سيدان)')} style={{ padding: '2.5rem 1.5rem', textAlign: 'center', cursor: 'pointer', background: '#FFF' }}>
-             <h3 style={{ fontSize: '1.5rem', color: 'var(--beige-main)', marginBottom: '1rem' }}>حجم عادي (سيدان) 🚗</h3>
-             <p className="text-gray" style={{ fontSize: '0.95rem'}}>كامري، التيما، أكورد<br/>5م × 3م</p>
+        )}
+        <div className="grid-responsive" style={{ marginBottom: '2.5rem' }}>
+          <div className={`card-base ${size==='double'?'card-selected':''}`} onClick={()=>updateField('size','double')} style={{ padding: '2.5rem 1.5rem', textAlign: 'center', cursor: 'pointer', background: '#FFF' }}>
+             <h3 style={{ fontSize: '1.5rem', color: 'var(--gold)', marginBottom: '1rem' }}>حجم ثنائي 🚙🚙</h3>
+          </div>
+          <div className={`card-base ${size==='single'?'card-selected':''}`} onClick={()=>updateField('size','single')} style={{ padding: '2.5rem 1.5rem', textAlign: 'center', cursor: 'pointer', background: '#FFF' }}>
+             <h3 style={{ fontSize: '1.5rem', color: 'var(--beige-main)', marginBottom: '1rem' }}>سيارة واحدة 🚗</h3>
           </div>
         </div>
         <div className="btn-row" style={{ display: 'flex', gap: '1rem', justifyContent: 'space-between' }}>
@@ -154,18 +210,21 @@ const Step3 = () => {
 };
 
 const Step4 = () => {
-    const { mounting, updateField, nextStep, prevStep } = useStore();
+    const { mounting, design, size, color, updateField, nextStep, prevStep } = useStore();
     return (
       <div>
         <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>كيف تفضل طريقة تثبيت المظلة في الموقع؟ 🛠️</h2>
-        <div className="grid-responsive" style={{ marginBottom: '2.5rem' }}>
-          <div className={`card-base ${mounting==='تثبيت جداري'?'card-selected':''}`} onClick={()=>updateField('mounting','تثبيت جداري')} style={{ cursor: 'pointer', textAlign: 'center', background: '#FFF' }}>
-            <img src="/image/16fce15f-22bf-4a2a-abc9-fe0b6717a51d.jpg" style={{ width: '100%', height: '160px', objectFit: 'cover' }} />
-            <div style={{ padding: '1rem' }}><h3 style={{fontSize:'1.2rem', marginBottom:'0.5rem'}}>تثبيت جداري 🧱</h3><p className="text-gray" style={{fontSize:'0.9rem'}}>بدون أعمدة أرضية مزعجة</p></div>
+        {mounting && design && size && design !== 'sahra' && (
+          <div style={{ marginBottom: '2rem', borderRadius: '15px', overflow: 'hidden' }}>
+             <SmartPreviewImage candidates={getFixationCandidates(design, size, mounting, color || 'beige')} label="معاينة التثبيت" height="250px" fit="contain" />
           </div>
-          <div className={`card-base ${mounting==='تثبيت على أعمدة'?'card-selected':''}`} onClick={()=>updateField('mounting','تثبيت على أعمدة')} style={{ cursor: 'pointer', textAlign: 'center', background: '#FFF' }}>
-            <img src="/image/218d1b4f-6360-4f30-b2a5-13b2860b1c53.jpg" style={{ width: '100%', height: '160px', objectFit: 'cover' }} />
-            <div style={{ padding: '1rem' }}><h3 style={{fontSize:'1.2rem', marginBottom:'0.5rem'}}>تثبيت على أعمدة 🏛️</h3><p className="text-gray" style={{fontSize:'0.9rem'}}>قواعد أرضية متينة جداً</p></div>
+        )}
+        <div className="grid-responsive" style={{ marginBottom: '2.5rem' }}>
+          <div className={`card-base ${mounting==='wall'?'card-selected':''}`} onClick={()=>updateField('mounting','wall')} style={{ cursor: 'pointer', textAlign: 'center', background: '#FFF' }}>
+            <div style={{ padding: '2rem 1rem' }}><h3 style={{fontSize:'1.2rem', marginBottom:'0.5rem'}}>تثبيت جداري 🧱</h3><p className="text-gray" style={{fontSize:'0.9rem'}}>بدون أعمدة أرضية مزعجة</p></div>
+          </div>
+          <div className={`card-base ${mounting==='column'?'card-selected':''}`} onClick={()=>updateField('mounting','column')} style={{ cursor: 'pointer', textAlign: 'center', background: '#FFF' }}>
+            <div style={{ padding: '2rem 1rem' }}><h3 style={{fontSize:'1.2rem', marginBottom:'0.5rem'}}>تثبيت على أعمدة 🏛️</h3><p className="text-gray" style={{fontSize:'0.9rem'}}>قواعد أرضية متينة جداً</p></div>
           </div>
         </div>
         <div className="btn-row" style={{ display: 'flex', gap: '1rem', justifyContent: 'space-between' }}>
@@ -177,48 +236,94 @@ const Step4 = () => {
 };
 
 const Step5 = () => {
-    const { fabricColor, frameColor, updateField, nextStep, prevStep } = useStore();
-    const liveImg = Math.random() > 0.5 ? '/image/5bfe30d6-3629-419e-92f0-5663abadf921.jpg' : '/image/77556bcc-093f-4cce-9bbf-cdfad275b19d.jpg';
+    const { design, size, mounting, color, updateField, nextStep, prevStep } = useStore();
+    
+    const finalCandidates = getFinalCandidates(design, size, mounting, color || 'beige');
     
     return (
       <div>
-        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>خصص ألوان المظلة 🎨</h2>
+        <h2 style={{ textAlign: 'center', marginBottom: '2rem' }}>اختر لون الخامة ✨</h2>
         <div className="color-studio" style={{ marginBottom: '2rem' }}>
            
-           <motion.div key={`${fabricColor}-${frameColor}`} initial={{ filter: 'blur(10px)'}} animate={{ filter: 'blur(0px)'}} style={{ borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border-glass)' }}>
-              <img src={liveImg} className="live-preview-img" style={{ width: '100%', height: '100%', minHeight: '300px', objectFit: 'cover' }} />
+           <motion.div key={color} initial={{ filter: 'blur(10px)'}} animate={{ filter: 'blur(0px)'}} style={{ borderRadius: '20px', overflow: 'hidden', border: '1px solid var(--border-glass)' }}>
+              <SmartPreviewImage candidates={finalCandidates} label="المعاينة النهائية" height="320px" fit="contain" bg="#FFFFFF" />
            </motion.div>
 
            <div className="card-base" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
               <div style={{ marginBottom: '2rem' }}>
-                 <h3 style={{ marginBottom: '1rem', color: 'var(--text-white)' }}>اختر لون القماش</h3>
-                 <div style={{ display: 'flex', gap: '1rem' }}>
-                    {[{id:'بيج', c:'#C9A96E'}, {id:'رمادي', c:'#C0B9A8'}, {id:'أبيض', c:'#FFFFFF'}].map(c => (
-                        <div key={c.id} onClick={()=>updateField('fabricColor', c.id)} style={{ width: '45px', height: '45px', borderRadius: '50%', background: c.c, border: `2px solid ${fabricColor===c.id?'var(--gold)':'var(--border-glass)'}`, boxShadow: '0 4px 6px rgba(0,0,0,0.1)', cursor: 'pointer', transform: fabricColor===c.id?'scale(1.1)':'none', transition: 'all 0.3s' }}></div>
-                    ))}
-                 </div>
-              </div>
-
-              <div>
-                 <h3 style={{ marginBottom: '1rem', color: 'var(--text-white)' }}>الحديد</h3>
-                 <div style={{ display: 'flex', gap: '1rem' }}>
-                    {[{id:'ذهبي فاتح', c:'#D4C4A0'}, {id:'أسود', c:'#333333'}].map(c => (
-                        <div key={c.id} onClick={()=>updateField('frameColor', c.id)} style={{ width: '45px', height: '45px', borderRadius: '50%', background: c.c, border: `2px solid ${frameColor===c.id?'var(--gold)':'var(--border-glass)'}`, boxShadow: '0 4px 6px rgba(0,0,0,0.1)', cursor: 'pointer', transform: frameColor===c.id?'scale(1.1)':'none', transition: 'all 0.3s' }}></div>
-                    ))}
+                 <h3 style={{ marginBottom: '1rem', color: 'var(--text-white)' }}>اختر اللون / الخامة</h3>
+                 <div style={{ display: 'grid', gap: '1rem' }}>
+                    <div onClick={()=>updateField('color', 'beige')} style={{ padding: '1rem', borderRadius: '15px', border: `2px solid ${color==='beige'?'var(--gold)':'var(--border-glass)'}`, cursor: 'pointer', background: color==='beige'?'var(--bg-hover)':'transparent', transition: 'all 0.3s' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                         <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: '#C9A96E' }}></div>
+                         <div>
+                            <div style={{ fontWeight: 'bold' }}>ذهبي — قياسي</div>
+                         </div>
+                      </div>
+                    </div>
+                    <div onClick={()=>updateField('color', 'noir')} style={{ padding: '1rem', borderRadius: '15px', border: `2px solid ${color==='noir'?'var(--gold)':'var(--border-glass)'}`, cursor: 'pointer', background: color==='noir'?'var(--bg-hover)':'transparent', transition: 'all 0.3s' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                         <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: '#1E1E1E' }}></div>
+                         <div>
+                            <div style={{ fontWeight: 'bold' }}>أسود</div>
+                         </div>
+                      </div>
+                    </div>
                  </div>
               </div>
            </div>
         </div>
         <div className="btn-row" style={{ display: 'flex', gap: '1rem', justifyContent: 'space-between' }}>
           <button className="btn btn-secondary" onClick={prevStep}>رجوع →</button>
-          <button className="btn btn-primary" disabled={!fabricColor || !frameColor} onClick={nextStep}>متابعة ←</button>
+          <button className="btn btn-primary" disabled={!color} onClick={nextStep}>متابعة ←</button>
         </div>
       </div>
     );
 };
 
 const Step6 = () => {
-    const { design, size, mounting, fabricColor, frameColor, customerName, nextStep, setStep } = useStore();
+    const { design, size, mounting, color, customerName, nextStep, setStep } = useStore();
+    
+    const PRICES = {
+      sahra: {
+        single: { min: 670,  max: 999  },
+        double: { min: 1090, max: 1699 }
+      },
+      malaki: {
+        single: { wall: { min: 976,  max: 1899 }, column: { min: 1354, max: 2399 } },
+        double: { wall: { min: 1715, max: 2599 }, column: { min: 2160, max: 2999 } }
+      },
+      neom: {
+        single: { wall: { min: 976,  max: 1699 }, column: { min: 1140, max: 1699 } },
+        double: { wall: { min: 1090, max: 1699 }, column: { min: 2080, max: 2599 } }
+      }
+    };
+
+    const getPrice = () => {
+      if(!design || !size) return {min: 0, max: 0};
+      if(design === 'sahra') return PRICES[design][size] || {min: 0, max: 0};
+      if(design === 'neom' && !mounting) {
+        const wall = PRICES.neom?.[size]?.wall;
+        const column = PRICES.neom?.[size]?.column;
+        if (wall && column) return { min: Math.min(wall.min, column.min), max: Math.max(wall.max, column.max) };
+      }
+      if(mounting) return PRICES[design]?.[size]?.[mounting] || {min: 0, max: 0};
+      return {min: 0, max: 0};
+    };
+
+    const { min, max } = getPrice();
+
+    const renderDesignName = (d) => {
+      if (d === 'sahra') return 'صحراء';
+      if (d === 'malaki') return 'ملكي';
+      if (d === 'neom') return 'نيوم';
+      return d;
+    };
+    
+    const renderSizeName = (s) => s === 'double' ? 'حجم ثنائي' : 'سيارة واحدة';
+    const renderMounting = (m) => m === 'wall' ? 'جداري' : (m === 'column' ? 'أعمدة' : '—');
+    const renderColor = (c) => c === 'beige' ? 'ذهبي' : 'أسود';
+
     return (
       <div>
         <div className="card-base padding-responsive" style={{ background: '#FFFFFF', marginBottom: '2rem' }}>
@@ -227,23 +332,28 @@ const Step6 = () => {
            </h2>
            <ul style={{ listStyle: 'none', fontSize: '1.1rem', padding: 0, marginTop: '2rem' }}>
               <li style={{ padding: '0.8rem 0', borderBottom: '1px solid var(--border-glass)' }}>
-                 🔹 <strong>التصميم:</strong> <span className="text-gray">{design}</span>
+                 🔹 <strong>التصميم:</strong> <span className="text-gray">{renderDesignName(design)}</span>
               </li>
               <li style={{ padding: '0.8rem 0', borderBottom: '1px solid var(--border-glass)' }}>
-                 🔹 <strong>الحجم:</strong> <span className="text-gray">{size}</span>
+                 🔹 <strong>الحجم:</strong> <span className="text-gray">{renderSizeName(size)}</span>
               </li>
               <li style={{ padding: '0.8rem 0', borderBottom: '1px solid var(--border-glass)' }}>
-                 🔹 <strong>التثبيت:</strong> <span className="text-gray">{mounting}</span>
+                 🔹 <strong>التثبيت:</strong> <span className="text-gray">{design === 'sahra' ? '—' : renderMounting(mounting)}</span>
               </li>
               <li style={{ padding: '0.8rem 0', borderBottom: 'none' }}>
-                 🔹 <strong>اللون:</strong> <span className="text-gray">قماش {fabricColor} / حديد {frameColor}</span>
+                 🔹 <strong>اللون:</strong> <span className="text-gray">{renderColor(color)}</span>
               </li>
            </ul>
            
            <div style={{ textAlign: 'center', marginTop: '2rem', padding: '1.5rem', background: 'var(--bg-void)', borderRadius: '15px', border: '1px solid var(--gold)' }}>
-              <p className="text-gray" style={{ marginBottom: '0.5rem', fontSize:'0.95rem' }}>الدفعة الأولى المطلوبة للبدء:</p>
-              <h2 style={{ fontSize: '2.5rem', color: 'var(--gold)' }}>999 ريال فقط</h2>
-              <p className="text-gray" style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>(متاحة للتقسيط عبر تابي/تمارا)</p>
+              <p className="text-gray" style={{ marginBottom: '0.5rem', fontSize:'0.95rem', lineHeight: '1.6' }}>
+                حسب التفاصيل التي اخترتها، سيكون السعر في حدود <br/>
+              </p>
+              <h2 style={{ fontSize: '2rem', color: 'var(--gold)', margin: '0.5rem 0' }}>{min} إلى {max} ريال</h2>
+              <p className="text-gray" style={{ fontSize: '0.9rem', marginTop: '0.5rem', lineHeight: '1.6' }}>
+                وذلك وفقًا للخامة المعتمدة ({renderColor(color)}).<br/>
+                وبعد زيارة المندوب ورفع القياسات اللازمة، سيتم تزويدك بالمبلغ النهائي بشكل دقيق.
+              </p>
            </div>
         </div>
 
@@ -277,8 +387,8 @@ const LocationMarker = ({ position, setPosition }) => {
   );
 };
 
-const Step7 = () => {
-    const { address, customerName, customerPhone, design, size, mounting, fabricColor, frameColor, updateField, nextStep, prevStep } = useStore();
+    const Step7 = () => {
+    const { address, customerName, customerPhone, design, size, mounting, color, updateField, nextStep, prevStep } = useStore();
     const defaultCenter = [24.7136, 46.6753]; // Riyadh Center
     const [position, setPosition] = useState(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -305,8 +415,9 @@ const Step7 = () => {
            clientPhone: customerPhone,
            designType: design,
            sizeInfo: size,
-           fixationType: mounting,
-           fabricColor: `${fabricColor} / الحديد: ${frameColor}`
+           fixationType: mounting || '—',
+           fabricColor: color === 'beige' ? 'اللون الذهبي' : 'الأسود',
+           address: address
        };
 
        fetch('http://localhost:8080/api/admin/requests', {
@@ -316,12 +427,15 @@ const Step7 = () => {
        })
        .then(res => res.json())
        .then(data => {
-           updateField('finalId', data.id); // Save backend returned ID
+           updateField('finalId', data.id);
            nextStep();
        })
        .catch(err => {
-           console.error("Erreur serveur:", err);
-           alert("Une erreur est survenue lors de l'envoi. Veuillez réessayer.");
+           console.warn("Backend not available, proceeding locally:", err);
+           // Generate a local order ID when backend is offline
+           const localId = 'L-' + Date.now().toString().slice(-6);
+           updateField('finalId', localId);
+           nextStep();
        })
        .finally(() => setIsSubmitting(false));
     };
@@ -330,15 +444,15 @@ const Step7 = () => {
       <div>
         <h2 style={{ textAlign: 'center', marginBottom: '2rem', lineHeight: '1.4' }}>
            🎉 تم تأكيد طلبك المبدئي بنجاح!<br/>
-           <span style={{ fontSize: '1.1rem', color: 'var(--text-gray)' }}>خطوة واحدة فقط تفصلنا عنك.. فضالً، شاركنا موقعك عبر الخريطة (Location) 📍</span>
+           <span style={{ fontSize: '1.1rem', color: 'var(--text-gray)' }}>خطوة واحدة فقط تفصلنا عنك.. فضلًا، شاركنا موقعك عبر الخريطة (Location) 📍</span>
         </h2>
         
         {/* Real Interactive Map using OpenStreetMap / Leaflet */}
         <div style={{ height: '300px', borderRadius: '20px', overflow: 'hidden', marginBottom: '1.5rem', border: '2px solid var(--border-glass)', zIndex: 0 }}>
            <MapContainer center={defaultCenter} zoom={11} style={{ width: '100%', height: '100%', zIndex: 0 }}>
              <TileLayer
-               url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-               attribution='&copy; OpenStreetMap contributors'
+               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+               attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
              />
              <LocationMarker position={position} setPosition={handleMapClick} />
            </MapContainer>
@@ -366,16 +480,53 @@ const Step7 = () => {
 };
 
 const Confirmation = () => {
-    const { setStep, finalId } = useStore();
+    const { setStep, customerName, finalId, design, size, mounting, color } = useStore();
+    const PRICES = {
+      sahra: {
+        single: { min: 670, max: 999 },
+        double: { min: 1090, max: 1699 }
+      },
+      malaki: {
+        single: { wall: { min: 976, max: 1899 }, column: { min: 1354, max: 2399 } },
+        double: { wall: { min: 1715, max: 2599 }, column: { min: 2160, max: 2999 } }
+      },
+      neom: {
+        single: { wall: { min: 976, max: 1699 }, column: { min: 1140, max: 1699 } },
+        double: { wall: { min: 1090, max: 1699 }, column: { min: 2080, max: 2599 } }
+      }
+    };
+
+    let currentPrice = design === 'sahra'
+      ? PRICES[design]?.[size]
+      : PRICES[design]?.[size]?.[mounting];
+    if (design === 'neom' && !mounting) {
+      const wall = PRICES.neom?.[size]?.wall;
+      const column = PRICES.neom?.[size]?.column;
+      if (wall && column) currentPrice = { min: Math.min(wall.min, column.min), max: Math.max(wall.max, column.max) };
+    }
+
+    const designLabel = design === 'sahra' ? 'صحراء' : design === 'malaki' ? 'ملكي' : 'نيوم';
+    const sizeLabel = size === 'double' ? 'حجم ثنائي' : 'سيارة واحدة';
+    const mountingLabel = design === 'sahra' ? '—' : (mounting === 'wall' ? 'معلقة' : 'أعمدة');
+    const colorLabel = color === 'beige' ? 'ذهبي' : 'أسود';
     return (
       <div className="card-base" style={{ textAlign: 'center', padding: '3rem 1.5rem', background: '#FFFFFF', maxWidth: '600px', margin: '0 auto', border: '1px solid var(--gold)' }}>
          <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', bounce: 0.5 }} style={{ fontSize: '4rem', marginBottom: '1rem' }}>📍</motion.div>
-         <h2 style={{ color: 'var(--text-white)', marginBottom: '1.5rem' }}>تم استلام الموقع بنجاح!</h2>
+         <h2 style={{ color: 'var(--gold)', marginBottom: '1.5rem' }}>تم استلام الموقع بنجاح ✅</h2>
          
          <p style={{ color: 'var(--text-gray)', fontSize: '1.1rem', marginBottom: '2rem', lineHeight: '1.6' }}>
-            سيقوم مندوبنا المختص برفع المقاسات بزيارتك خلال الـ 12 ساعة القادمة.<br/>
-            وسيتم التواصل معك قريباً ☀️!
+            الأستاذ <strong>{customerName}</strong>، سيتواصل معك فريق خدمة الحرفاء لتحديد موعد الزيارة الميدانية.
          </p>
+
+         <div style={{ textAlign: 'right', background: 'var(--bg-void)', border: '1px solid var(--border-glass)', borderRadius: '14px', padding: '1rem', marginBottom: '1.5rem' }}>
+           <p style={{ marginBottom: '0.35rem', color: 'var(--text-gray)' }}><strong>التصميم:</strong> {designLabel}</p>
+           <p style={{ marginBottom: '0.35rem', color: 'var(--text-gray)' }}><strong>الحجم:</strong> {sizeLabel}</p>
+           <p style={{ marginBottom: '0.35rem', color: 'var(--text-gray)' }}><strong>التثبيت:</strong> {mountingLabel}</p>
+           <p style={{ marginBottom: '0.35rem', color: 'var(--text-gray)' }}><strong>اللون:</strong> {colorLabel}</p>
+           <p style={{ marginBottom: 0, color: 'var(--text-gray)' }}>
+             <strong>السعر:</strong> من {currentPrice?.min ?? 0} إلى {currentPrice?.max ?? 0} ريال
+           </p>
+         </div>
 
          <div style={{ background: 'var(--bg-void)', padding: '1rem', borderRadius: '15px', display: 'inline-block', marginBottom: '2rem', border: '1px dashed var(--gold)' }}>
             <p className="text-gray" style={{ marginBottom: '0.3rem', fontSize: '0.9rem' }}>رقم الطلب الخاص بك</p>

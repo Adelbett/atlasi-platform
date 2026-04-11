@@ -1,36 +1,55 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-export const useStore = create((set) => ({
-  // Navigation State
-  currentStep: 0, // 0 is Landing, 1-7 are Wizard, 8 is Confirmation
-  setStep: (step) => set({ currentStep: step }),
-  nextStep: () => set((state) => ({ currentStep: Math.min(state.currentStep + 1, 8) })),
-  prevStep: () => set((state) => ({ currentStep: Math.max(state.currentStep - 1, 0) })),
+export const useStore = create(
+  persist(
+    (set) => ({
+      // Navigation State
+      currentStep: 0, // 0 is Landing, 1-7 are Wizard, 8 is Confirmation, 9 is Cancel
+      setStep: (step) => set({ currentStep: step }),
+      nextStep: () =>
+        set((state) => {
+          let next = state.currentStep + 1;
+          if (next === 4 && (state.design === 'sahra' || state.design === 'neom')) next = 5;
+          return { currentStep: Math.min(next, 9) };
+        }),
+      prevStep: () =>
+        set((state) => {
+          let prev = state.currentStep - 1;
+          if (prev === 4 && (state.design === 'sahra' || state.design === 'neom')) prev = 3;
+          return { currentStep: Math.max(prev, 0) };
+        }),
 
-  // Order Data State
-  customerName: '',
-  customerPhone: '',
-  design: '',
-  size: '',
-  mounting: '',
-  fabricColor: '',
-  frameColor: '',
-  address: '',
-  notes: '',
-  
-  // Setters
-  updateField: (field, value) => set({ [field]: value }),
-  
-  resetOrder: () => set({
-    currentStep: 0,
-    customerName: '',
-    customerPhone: '',
-    design: '',
-    size: '',
-    mounting: '',
-    fabricColor: '',
-    frameColor: '',
-    address: '',
-    notes: ''
-  })
-}));
+      // Order Data State
+      customerName: '',
+      customerPhone: '',
+      design: '',
+      size: '',
+      mounting: '',
+      color: 'beige', // default color
+      address: '',
+      notes: '',
+      finalId: '',
+
+      // Setters
+      updateField: (field, value) => set({ [field]: value }),
+
+      resetOrder: () =>
+        set({
+          currentStep: 0,
+          customerName: '',
+          customerPhone: '',
+          design: '',
+          size: '',
+          mounting: '',
+          color: 'beige',
+          address: '',
+          notes: '',
+          finalId: ''
+        })
+    }),
+    {
+      name: 'atlasi-order-store'
+    }
+  )
+);

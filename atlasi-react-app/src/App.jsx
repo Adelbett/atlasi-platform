@@ -44,7 +44,9 @@ function App() {
 
       {/* Floating WhatsApp */}
       <a 
-        href="#" 
+        href="https://wa.me/966548105757" 
+        target="_blank"
+        rel="noopener noreferrer"
         style={{
           position: 'fixed', bottom: '2rem', left: '1rem',
           backgroundColor: '#25D366', width: '60px', height: '60px',

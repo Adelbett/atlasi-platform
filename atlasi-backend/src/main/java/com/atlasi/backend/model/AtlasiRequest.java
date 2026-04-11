@@ -21,6 +21,7 @@ public class AtlasiRequest {
     private String sizeInfo; // Grand SUV / Petit Sedan
     private String fixationType; // Murale / Sur poteaux
     private String fabricColor;
+    private String address; // Added to store map location or text address
     
     private LocalDateTime requestDate;
     private String status; // En attente, Confirmée, Annulée, Visite planifiée

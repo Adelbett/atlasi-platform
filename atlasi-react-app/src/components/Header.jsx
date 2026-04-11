@@ -29,13 +29,6 @@ const Header = () => {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-        {/* Hide links on small screens by doing it simple, but here doing quick responsive trick */}
-        <nav className="desktop-only" style={{ display: 'flex', gap: '1.5rem', fontWeight: 'bolder', color: 'var(--text-gray)' }}>
-           <a href="#" style={{ textDecoration: 'none', color: 'inherit' }} onClick={(e) => {e.preventDefault(); setStep(0)}}>الرئيسية</a>
-           <a href="#" style={{ textDecoration: 'none', color: 'inherit' }}>أعمالنا</a>
-           <a href="#contact" style={{ textDecoration: 'none', color: 'inherit' }}>اتصل بنا</a>
-        </nav>
-        
         {currentStep === 0 && (
           <button className="btn btn-primary" style={{ minHeight: '40px', padding: '0.4rem 1.5rem', fontSize: '0.9rem' }} onClick={() => setStep(1)}>
             اطلب الآن

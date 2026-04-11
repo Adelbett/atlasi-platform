@@ -22,14 +22,31 @@ const Footer = () => {
             </div>
          </div>
 
-         {/* Quick Links */}
+         {/* Loyalty Features */}
          <div>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--text-white)' }}>روابط سريعة</h3>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-              <li><a href="#" style={{ color: 'var(--text-gray)', textDecoration: 'none' }}>الرئيسية</a></li>
-              <li><a href="#" style={{ color: 'var(--text-gray)', textDecoration: 'none' }}>معرض أعمالنا</a></li>
-              <li><a href="#" style={{ color: 'var(--text-gray)', textDecoration: 'none' }}>كيف نعمل؟</a></li>
-              <li><a href="#" style={{ color: 'var(--text-gray)', textDecoration: 'none' }}>الضمان والصيانة</a></li>
+            <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--text-white)' }}>مزايا الولاء</h3>
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--text-gray)' }}>
+              <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <span className="text-gold" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>📲</span>
+                <span>
+                  <strong style={{ color: 'var(--text-white)' }}>إصدار تلقائي</strong><br />
+                  تُرسل للعميل عبر واتساب بعد التركيب مباشرة
+                </span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <span className="text-gold" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>📱</span>
+                <span>
+                  <strong style={{ color: 'var(--text-white)' }}>مرتبطة برقم الجوال</strong><br />
+                  الخصومات محفوظة في النظام ولا تنتهي
+                </span>
+              </li>
+              <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+                <span className="text-gold" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>🎁</span>
+                <span>
+                  <strong style={{ color: 'var(--text-white)' }}>قابلة للإهداء</strong><br />
+                  شارك رمز خصمك مع العائلة والأصدقاء
+                </span>
+              </li>
             </ul>
          </div>
 
