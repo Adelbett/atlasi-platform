@@ -62,7 +62,7 @@
 }
 .carousel-card.hidden { opacity: 0; visibility: hidden; transform: scale(0.4); }
 
-.pagination-dot.active { background-color: #B89B5E; width: 1.5rem; }
+.pagination-dot.active { background-color: #1c1b1b; width: 1.5rem; }
 
 /* Milestones Line */
 .milestone-connector {
