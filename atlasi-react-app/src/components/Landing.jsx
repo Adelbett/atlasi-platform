@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useStore } from '../store';
 
 const heroImages = [
@@ -37,37 +37,74 @@ const loyaltySteps = [
   { num: '★', title: 'كبار العملاء', sub: 'تغطية شاملة ومزايا حصرية (50%)', highlight: true },
 ];
 
+const TOTAL = projectCards.length;
+
 const Landing = () => {
   const setStep = useStore(state => state.setStep);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [paused, setPaused] = useState(false);
   const [heroIndex, setHeroIndex] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(0);
+  const [scrollPct, setScrollPct] = useState(0);
+  const [paused, setPaused] = useState(false);
 
-  // Hero slideshow — every 10 seconds
+  const scrollRef = useRef(null);
+  const cardRefs = useRef([]);
+
+  // Hero slideshow
   useEffect(() => {
-    const timer = setInterval(() => {
-      setHeroIndex(i => (i + 1) % heroImages.length);
-    }, 10000);
-    return () => clearInterval(timer);
+    const t = setInterval(() => setHeroIndex(i => (i + 1) % heroImages.length), 10000);
+    return () => clearInterval(t);
   }, []);
 
-  // Gallery carousel
+  const getActiveFromScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return 0;
+    const viewportCenter = el.scrollLeft + el.clientWidth / 2;
+    let best = 0, bestDist = Infinity;
+    cardRefs.current.forEach((card, i) => {
+      if (!card) return;
+      const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+      const dist = Math.abs(cardCenter - viewportCenter);
+      if (dist < bestDist) { bestDist = dist; best = i; }
+    });
+    return best;
+  }, []);
+
+  const scrollToIndex = useCallback((i) => {
+    const card = cardRefs.current[i];
+    const el = scrollRef.current;
+    if (!card || !el) return;
+    const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+    el.scrollTo({ left: cardCenter - el.clientWidth / 2, behavior: 'smooth' });
+  }, []);
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setActiveIdx(getActiveFromScroll());
+    const pct = el.scrollLeft / (el.scrollWidth - el.clientWidth);
+    setScrollPct(Math.max(0, Math.min(1, pct)));
+  }, [getActiveFromScroll]);
+
+  // Attach scroll listener
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
+
+  // Gallery autoplay
   useEffect(() => {
     if (paused) return;
-    const interval = setInterval(() => {
-      setActiveIndex(current => (current + 1) % projectCards.length);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, [paused]);
+    const t = setInterval(() => scrollToIndex((activeIdx + 1) % TOTAL), 4000);
+    return () => clearInterval(t);
+  }, [paused, activeIdx, scrollToIndex]);
 
-  const getCardClass = (index) => {
-    const total = projectCards.length;
-    if (index === activeIndex) return 'active';
-    if (index === (activeIndex - 1 + total) % total) return 'prev';
-    if (index === (activeIndex + 1) % total) return 'next';
-    if (index === (activeIndex - 2 + total) % total) return 'far-prev';
-    if (index === (activeIndex + 2) % total) return 'far-next';
-    return 'hidden';
+  const cardClass = (i) => {
+    const d = Math.abs(i - activeIdx);
+    if (d === 0) return 'luxe-card is-active';
+    if (d === 1) return 'luxe-card is-near';
+    return 'luxe-card is-far';
   };
 
   return (
@@ -169,54 +206,76 @@ const Landing = () => {
         </div>
       </section>
 
-      {/* ── Product Gallery ── */}
-      <section className="py-24 md:py-32 bg-surface-container-low overflow-hidden" id="gallery">
-        <div className="max-w-7xl mx-auto px-6 md:px-12">
-          <div className="mb-16 flex flex-col md:flex-row justify-between items-end gap-6 text-right">
-            <div className="space-y-4">
-              <h2 className="text-4xl md:text-5xl font-bold text-on-surface">نماذج من أعمالنا الفاخرة</h2>
-              <p className="text-secondary text-lg">نجمع بين المتانة والتصميم العصري في كل تفصيل ({projectCards.length} نموذج)</p>
-            </div>
-          </div>
+      {/* ── Product Gallery — Luxe Scroll Snap ── */}
+      <section className="py-16 md:py-24 bg-surface-container-low overflow-hidden" id="gallery">
+        <div className="mb-10 md:mb-14 flex flex-col items-center text-center px-6">
+          <h2 className="text-4xl md:text-5xl font-extrabold text-[#735c00]">نماذج من أعمالنا الفاخرة</h2>
+          <p className="text-secondary text-sm mt-3">اسحب يميناً أو يساراً لاستعراض التصاميم</p>
+        </div>
 
-          <div className="perspective-container">
-            <div
-              className="carousel-3d-track"
-              onMouseEnter={() => setPaused(true)}
-              onMouseLeave={() => setPaused(false)}
-            >
-              {projectCards.map((card, index) => (
-                <div
-                  key={index}
-                  className={`carousel-3d-card carousel-card ${getCardClass(index)}`}
-                  onClick={() => setActiveIndex(index)}
-                >
-                  <img alt={card.title} src={card.image} />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent flex flex-col justify-end p-5 text-right">
-                    <span className={`inline-block w-fit px-3 py-1 ${card.badgeColor} rounded text-[9px] font-bold text-white uppercase tracking-widest mb-2`}>
-                      {card.category}
-                    </span>
-                    <h3 className="text-white text-xl font-bold">{card.title}</h3>
-                  </div>
+        {/* Scroll-snap viewport — full width, no clipping */}
+        <div
+          ref={scrollRef}
+          className="luxe-carousel-viewport"
+          onMouseEnter={() => setPaused(true)}
+          onMouseLeave={() => setPaused(false)}
+        >
+          <div className="luxe-carousel-track">
+            {projectCards.map((card, i) => (
+              <div
+                key={i}
+                ref={el => { cardRefs.current[i] = el; }}
+                className={cardClass(i)}
+                onClick={() => scrollToIndex(i)}
+              >
+                <img
+                  alt={card.title}
+                  src={card.image}
+                  draggable={false}
+                  loading={i < 4 ? 'eager' : 'lazy'}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent flex flex-col justify-end p-5 text-right">
+                  <span className={`inline-block w-fit px-3 py-1 ${card.badgeColor} rounded text-[9px] font-bold text-white uppercase tracking-widest mb-2`}>
+                    {card.category}
+                  </span>
+                  <h3 className="text-white text-xl font-bold">{card.title}</h3>
                 </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex justify-center mt-4 gap-2 flex-wrap max-w-xl mx-auto">
-            {projectCards.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setActiveIndex(index)}
-                className={`pagination-dot h-1 w-3 rounded-full bg-outline-variant/30 transition-all duration-300 ${index === activeIndex ? 'active !bg-[#1c1b1b] !w-6' : ''}`}
-              />
+              </div>
             ))}
           </div>
         </div>
+
+        {/* Nav: arrows + thin gold progress bar */}
+        <div className="flex items-center justify-center gap-5 mt-6 px-6">
+          <button
+            onClick={() => scrollToIndex(Math.max(0, activeIdx - 1))}
+            disabled={activeIdx === 0}
+            className="w-9 h-9 rounded-full border border-outline-variant/40 flex items-center justify-center text-secondary hover:bg-white hover:border-[#735c00] hover:text-[#735c00] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+          </button>
+
+          <div className="luxe-progress-track flex-1 max-w-[200px]">
+            <div className="luxe-progress-fill" style={{ width: `${scrollPct * 100}%` }} />
+          </div>
+
+          <button
+            onClick={() => scrollToIndex(Math.min(TOTAL - 1, activeIdx + 1))}
+            disabled={activeIdx === TOTAL - 1}
+            className="w-9 h-9 rounded-full border border-outline-variant/40 flex items-center justify-center text-secondary hover:bg-white hover:border-[#735c00] hover:text-[#735c00] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+          </button>
+        </div>
+
+        {/* Subtle counter */}
+        <p className="text-center text-[11px] text-secondary/60 mt-2 tracking-widest">
+          {activeIdx + 1} / {TOTAL}
+        </p>
       </section>
 
       {/* ── Golden Card Section ── */}
-      <section className="py-32 relative bg-surface-container-lowest overflow-hidden" id="loyalty">
+      <section className="py-16 md:py-32 relative bg-surface-container-lowest overflow-hidden" id="loyalty">
         <div className="max-w-7xl mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-16 items-center">
           <div className="space-y-10 order-2 md:order-1 text-right">
             <div className="space-y-4">
@@ -248,7 +307,6 @@ const Landing = () => {
           </div>
           <div className="relative order-1 md:order-2 flex justify-center">
             <div className="relative z-10 w-full max-w-md aspect-[1.58/1] bg-gradient-to-br from-[#735b25] to-[#B89B5E] rounded-2xl p-8 text-white shadow-2xl flex flex-col justify-between overflow-hidden group transition-transform hover:scale-105 duration-500">
-              <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-10"></div>
               <div className="flex justify-between items-start">
                 <div className="font-bold text-xl tracking-wide">الأطلسي</div>
                 <span className="material-symbols-outlined text-3xl text-white/40">contactless</span>
@@ -268,7 +326,7 @@ const Landing = () => {
       </section>
 
       {/* ── Loyalty Journey ── */}
-      <section className="py-24 px-6 bg-surface-container-lowest" id="loyalty-journey">
+      <section className="py-12 md:py-24 px-6 bg-surface-container-lowest" id="loyalty-journey">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-on-surface">رحلة الولاء الذهبية</h2>
           <p className="text-secondary mb-16">كل طلب يقربك من مزايا استثنائية</p>

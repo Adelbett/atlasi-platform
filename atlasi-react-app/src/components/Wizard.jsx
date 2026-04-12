@@ -331,20 +331,20 @@ const Step2 = () => {
         </p>
       </section>
 
-      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <section className="flex flex-row md:grid md:grid-cols-3 gap-6 overflow-x-auto md:overflow-hidden pb-6 md:pb-0 hide-scrollbar snap-x snap-mandatory">
         {designs.map(d => (
           <div
             key={d.id}
             onClick={() => updateField('design', d.id)}
-            className={`group relative flex flex-col bg-surface-container-lowest/80 backdrop-blur-md rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer border ${design === d.id ? 'ring-2 ring-[#1c1b1b] border-[#1c1b1b] shadow-2xl' : 'border-surface-container hover:border-[#d0c5af]/30'} active:scale-[0.98]`}
+            className={`group relative flex flex-col flex-shrink-0 w-[280px] md:w-auto snap-center bg-surface-container-lowest/80 backdrop-blur-md rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer border ${design === d.id ? 'ring-2 ring-[#1c1b1b] border-[#1c1b1b] shadow-2xl' : 'border-surface-container hover:border-[#d0c5af]/30'} active:scale-[0.98]`}
           >
             {d.featured && (
               <div className="absolute top-4 right-4 z-10">
                 <div className="bg-[#1c1b1b] text-white px-3 py-0.5 rounded-full text-[9px] font-bold tracking-widest">الأكثر طلباً</div>
               </div>
             )}
-            <div className="h-[240px] md:h-[280px] overflow-hidden">
-              <img alt={d.title} src={d.img} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+            <div className="h-[200px] md:h-[220px] overflow-hidden bg-neutral-50 flex items-center justify-center">
+              <img alt={d.title} src={d.img} className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110" />
             </div>
             <div className="p-5 flex flex-col gap-3">
               <div className="flex justify-between items-center">
@@ -392,7 +392,7 @@ const Step3 = () => {
   const { size, design, color, fixation, updateField, nextStep, prevStep } = useStore();
   const options = [
     { id: 'single', label: 'مظلة سيارة واحدة', desc: 'مثالية للمساحات المحدودة والفلل السكنية.', icon: 'directions_car' },
-    { id: 'double', label: 'مظلة سيارتين فأكثر', desc: 'الحل الأمثل للعائلات والمجمعات الواسعة.', icon: 'airport_shuttle' },
+    { id: 'double', label: 'مظلة سيارتين ', desc: 'الحل الأمثل للعائلات والمجمعات الواسعة.', icon: 'airport_shuttle' },
   ];
   const previewImg = getImageName(design, size, fixation || 'column', color || 'beige');
 
@@ -592,21 +592,9 @@ const Step6 = () => {
 
   return (
     <div className="text-right">
-      <header className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 md:mb-16 gap-4">
-        <div>
-          <h1 className="text-3xl md:text-4xl font-bold text-on-surface mb-2">مراجعة التفاصيل</h1>
-          <p className="text-secondary max-w-lg leading-relaxed text-sm">يرجى مراجعة المواصفات المختارة لمظلة سيارتك الفاخرة قبل التأكيد النهائي.</p>
-        </div>
-        <div className="text-right md:text-left">
-          <span className="text-xs text-zinc-400 block mb-1">نطاق السعر المتوقع</span>
-          <span className="text-2xl md:text-3xl font-extrabold text-[#735c00]">
-            {(() => {
-              const p = calculatePrice(design, size, fixation, color);
-              if (!p) return '—';
-              return p.fixed ? `${p.sellMin.toLocaleString()} ر.س` : `من ${p.sellMin.toLocaleString()} إلى ${p.sellMax.toLocaleString()} ر.س`;
-            })()}
-          </span>
-        </div>
+      <header className="bg-transparent border-none">
+        <h1 className="text-3xl md:text-4xl font-bold text-on-surface mb-2">مراجعة التفاصيل</h1>
+        <p className="text-secondary max-w-lg leading-relaxed text-sm">يرجى مراجعة المواصفات المختارة لمظلة سيارتك الفاخرة قبل التأكيد النهائي.</p>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
@@ -637,13 +625,33 @@ const Step6 = () => {
               </div>
               <div className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ${color === 'noir' ? 'bg-[#1A1A1A]' : 'bg-[#F5F5DC]'}`} />
             </div>
-            <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
-              <div>
-                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نظام التثبيت</span>
-                <p className="text-base md:text-lg font-semibold">{fixation === 'wall' ? 'تثبيت معلق على الجدار' : 'تثبيت على أعمدة قائمة'}</p>
+            {design !== 'sahara' && (
+              <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
+                <div>
+                  <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نظام التثبيت</span>
+                  <p className="text-base md:text-lg font-semibold">{fixation === 'wall' ? 'تثبيت معلق على الجدار' : 'تثبيت على أعمدة قائمة'}</p>
+                </div>
+                <span className="material-symbols-outlined text-zinc-400">architecture</span>
               </div>
-              <span className="material-symbols-outlined text-zinc-400">architecture</span>
-            </div>
+            )}
+            {/* السعر داخل نفس الكادر */}
+            {(() => {
+              const p = calculatePrice(design, size, fixation, color);
+              if (!p) return null;
+              return (
+                <div className="flex justify-between items-center pt-1">
+                  <div>
+                    <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نطاق السعر المتوقع</span>
+                    <p className="text-xl md:text-2xl font-extrabold text-[#735c00]">
+                      {p.fixed
+                        ? `${p.sellMin.toLocaleString()} ر.س`
+                        : `من ${p.sellMin.toLocaleString()} إلى ${p.sellMax.toLocaleString()} ر.س`}
+                    </p>
+                  </div>
+                  <span className="material-symbols-outlined text-[#735c00]/40 text-3xl">payments</span>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">
@@ -717,20 +725,23 @@ const Step7 = () => {
 
       if (response.ok) {
         const result = await response.json();
-        // The backend might generate an ID or confirmation number
-        const finalId = result.confirmationNumber || `ATL-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+        const firstName = (customerName || 'CLIENT').split(' ')[0].toUpperCase();
+        const timestamp = Math.floor(Date.now() / 1000);
+        const finalId = result.confirmationNumber || `ATL-${firstName}-${timestamp}`;
         updateField('finalId', finalId);
         setStep(8);
       } else {
         console.error('Failed to submit order');
-        // Fallback for demo
-        updateField('finalId', `ATL-${Math.random().toString(36).substring(2, 6).toUpperCase()}`);
+        const firstName = (customerName || 'CLIENT').split(' ')[0].toUpperCase();
+        const timestamp = Math.floor(Date.now() / 1000);
+        updateField('finalId', `ATL-${firstName}-${timestamp}`);
         setStep(8);
       }
     } catch (error) {
       console.error('Error submitting order:', error);
-      // Fallback for demo
-      updateField('finalId', `ATL-${Math.random().toString(36).substring(2, 6).toUpperCase()}`);
+      const firstName = (customerName || 'CLIENT').split(' ')[0].toUpperCase();
+      const timestamp = Math.floor(Date.now() / 1000);
+      updateField('finalId', `ATL-${firstName}-${timestamp}`);
       setStep(8);
     } finally {
       setIsSubmitting(false);
@@ -867,7 +878,7 @@ const Confirmation = () => {
             </div>
 
             {/* ملخص الطلب */}
-            <div className="max-w-lg mx-auto bg-white/80 rounded-xl p-5 md:p-6 mb-8 border border-outline-variant/15 text-right">
+            <div className="max-w-lg mx-auto bg-white/80 rounded-xl p-5 md:p-6 mb-4 border border-outline-variant/15 text-right">
               <h3 className="font-bold text-on-surface mb-4 text-sm">ملخص طلبكم</h3>
               <div className="space-y-3">
                 <div className="flex justify-between items-center py-2 border-b border-outline-variant/10">
@@ -884,15 +895,46 @@ const Confirmation = () => {
                     <span className="text-xs text-secondary">التثبيت</span>
                   </div>
                 )}
-                <div className="flex justify-between items-center py-2">
+                <div className="flex justify-between items-center py-2 border-b border-outline-variant/10">
                   <div className="flex items-center gap-2">
                     <div className={`w-5 h-5 rounded-full border border-outline-variant/30 ${color === 'noir' ? 'bg-[#1A1A1A]' : 'bg-[#F5F5DC]'}`} />
                     <span className="font-semibold text-sm">{colorLabel}</span>
                   </div>
                   <span className="text-xs text-secondary">اللون</span>
                 </div>
+                {/* السعر — حسب price_and_image_logic */}
+                {(() => {
+                  const p = calculatePrice(design, size, fixation, color);
+                  if (!p) return null;
+                  return (
+                    <div className="flex justify-between items-center py-2">
+                      <span className="font-bold text-sm text-[#735c00]">
+                        {p.fixed ? `${p.sellMin.toLocaleString()} ريال` : `من ${p.sellMin.toLocaleString()} إلى ${p.sellMax.toLocaleString()} ريال`}
+                      </span>
+                      <span className="text-xs text-secondary">نطاق السعر</span>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
+
+            {/* نص السعر التفصيلي */}
+            {(() => {
+              const p = calculatePrice(design, size, fixation, color);
+              if (!p) return null;
+              return (
+                <div className="max-w-lg mx-auto bg-[#735c00]/5 border border-[#735c00]/20 rounded-xl p-4 mb-8 text-right">
+                  <p className="text-sm leading-relaxed text-on-surface">
+                    {p.fixed
+                      ? <>سعر هذا الموديل ثابت بـ <span className="font-bold text-[#735c00]">{p.sellMin.toLocaleString()} ريال</span></>
+                      : <>حسب تفاصيلك، سيكون السعر في حدود <span className="font-bold text-[#735c00]">من {p.sellMin.toLocaleString()} إلى {p.sellMax.toLocaleString()} ريال</span></>
+                    }
+                    {' — '}خامة <span className="font-semibold">{p.colorLabel}</span> — {p.qualityNote}.
+                  </p>
+                  <p className="text-xs text-secondary mt-2">بعد زيارة المندوب ورفع القياسات اللازمة، سيتم تزويدك بالمبلغ النهائي بشكل دقيق.</p>
+                </div>
+              );
+            })()}
 
             {/* أزرار الإجراء */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
