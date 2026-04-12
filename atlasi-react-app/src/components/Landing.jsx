@@ -38,16 +38,24 @@ const loyaltySteps = [
 ];
 
 const TOTAL = projectCards.length;
+// ── Infinite loop: clone N cards on each side ──────────────────
+const CLONE = 5;
+const loopedCards = [
+  ...projectCards.slice(-CLONE),  // clones of last 5 at front
+  ...projectCards,                 // 20 real cards
+  ...projectCards.slice(0, CLONE), // clones of first 5 at end
+];
 
 const Landing = () => {
   const setStep = useStore(state => state.setStep);
   const [heroIndex, setHeroIndex] = useState(0);
-  const [activeIdx, setActiveIdx] = useState(0);
+  const [activeIdx, setActiveIdx] = useState(0);   // real index 0–19
   const [scrollPct, setScrollPct] = useState(0);
   const [paused, setPaused] = useState(false);
 
   const scrollRef = useRef(null);
   const cardRefs = useRef([]);
+  const loopTimerRef = useRef(null);
 
   // Hero slideshow
   useEffect(() => {
@@ -55,11 +63,23 @@ const Landing = () => {
     return () => clearInterval(t);
   }, []);
 
-  const getActiveFromScroll = useCallback(() => {
+  // ── Helpers ──────────────────────────────────────────────────
+
+  /** Scroll to a looped-array index (instant = no animation) */
+  const scrollToLoopedIdx = useCallback((loopedI, animate = true) => {
+    const card = cardRefs.current[loopedI];
     const el = scrollRef.current;
-    if (!el) return 0;
+    if (!card || !el) return;
+    const cardCenter = card.offsetLeft + card.offsetWidth / 2;
+    el.scrollTo({ left: cardCenter - el.clientWidth / 2, behavior: animate ? 'smooth' : 'instant' });
+  }, []);
+
+  /** Find which looped index is closest to the viewport center */
+  const getLoopedIdxFromScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return CLONE;
     const viewportCenter = el.scrollLeft + el.clientWidth / 2;
-    let best = 0, bestDist = Infinity;
+    let best = CLONE, bestDist = Infinity;
     cardRefs.current.forEach((card, i) => {
       if (!card) return;
       const cardCenter = card.offsetLeft + card.offsetWidth / 2;
@@ -69,21 +89,30 @@ const Landing = () => {
     return best;
   }, []);
 
-  const scrollToIndex = useCallback((i) => {
-    const card = cardRefs.current[i];
-    const el = scrollRef.current;
-    if (!card || !el) return;
-    const cardCenter = card.offsetLeft + card.offsetWidth / 2;
-    el.scrollTo({ left: cardCenter - el.clientWidth / 2, behavior: 'smooth' });
-  }, []);
+  /** Public API: scroll to a real index 0–19 */
+  const scrollToIndex = useCallback((realIdx) => {
+    scrollToLoopedIdx(realIdx + CLONE);
+  }, [scrollToLoopedIdx]);
 
+  // ── Scroll handler + seamless teleport ───────────────────────
   const handleScroll = useCallback(() => {
     const el = scrollRef.current;
     if (!el) return;
-    setActiveIdx(getActiveFromScroll());
-    const pct = el.scrollLeft / (el.scrollWidth - el.clientWidth);
-    setScrollPct(Math.max(0, Math.min(1, pct)));
-  }, [getActiveFromScroll]);
+    const loopedI = getLoopedIdxFromScroll();
+    const realIdx = (loopedI - CLONE + TOTAL) % TOTAL;
+    setActiveIdx(realIdx);
+    setScrollPct(realIdx / (TOTAL - 1));
+
+    // Debounce the loop teleport so it fires after scroll settles
+    clearTimeout(loopTimerRef.current);
+    loopTimerRef.current = setTimeout(() => {
+      if (loopedI < CLONE) {
+        scrollToLoopedIdx(loopedI + TOTAL, false);   // jumped into front clones → teleport to real end
+      } else if (loopedI >= CLONE + TOTAL) {
+        scrollToLoopedIdx(loopedI - TOTAL, false);   // jumped into back clones → teleport to real start
+      }
+    }, 80);
+  }, [getLoopedIdxFromScroll, scrollToLoopedIdx]);
 
   // Attach scroll listener
   useEffect(() => {
@@ -93,6 +122,12 @@ const Landing = () => {
     return () => el.removeEventListener('scroll', handleScroll);
   }, [handleScroll]);
 
+  // Initial scroll: land on first real card (index CLONE), no animation
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => scrollToLoopedIdx(CLONE, false));
+    return () => cancelAnimationFrame(raf);
+  }, [scrollToLoopedIdx]);
+
   // Gallery autoplay
   useEffect(() => {
     if (paused) return;
@@ -100,8 +135,9 @@ const Landing = () => {
     return () => clearInterval(t);
   }, [paused, activeIdx, scrollToIndex]);
 
-  const cardClass = (i) => {
-    const d = Math.abs(i - activeIdx);
+  // Card class: compare looped position against current active's looped position
+  const cardClass = (loopedI) => {
+    const d = Math.abs(loopedI - (activeIdx + CLONE));
     if (d === 0) return 'luxe-card is-active';
     if (d === 1) return 'luxe-card is-near';
     return 'luxe-card is-far';
@@ -221,18 +257,18 @@ const Landing = () => {
           onMouseLeave={() => setPaused(false)}
         >
           <div className="luxe-carousel-track">
-            {projectCards.map((card, i) => (
+            {loopedCards.map((card, i) => (
               <div
                 key={i}
                 ref={el => { cardRefs.current[i] = el; }}
                 className={cardClass(i)}
-                onClick={() => scrollToIndex(i)}
+                onClick={() => scrollToLoopedIdx(i)}
               >
                 <img
                   alt={card.title}
                   src={card.image}
                   draggable={false}
-                  loading={i < 4 ? 'eager' : 'lazy'}
+                  loading={i < CLONE + 4 ? 'eager' : 'lazy'}
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent flex flex-col justify-end p-5 text-right">
                   <span className={`inline-block w-fit px-3 py-1 ${card.badgeColor} rounded text-[9px] font-bold text-white uppercase tracking-widest mb-2`}>
@@ -245,12 +281,11 @@ const Landing = () => {
           </div>
         </div>
 
-        {/* Nav: arrows + thin gold progress bar */}
+        {/* Nav: arrows (toujours actifs — loop infini) + barre de progression */}
         <div className="flex items-center justify-center gap-5 mt-6 px-6">
           <button
-            onClick={() => scrollToIndex(Math.max(0, activeIdx - 1))}
-            disabled={activeIdx === 0}
-            className="w-9 h-9 rounded-full border border-outline-variant/40 flex items-center justify-center text-secondary hover:bg-white hover:border-[#735c00] hover:text-[#735c00] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            onClick={() => scrollToIndex((activeIdx - 1 + TOTAL) % TOTAL)}
+            className="w-9 h-9 rounded-full border border-outline-variant/40 flex items-center justify-center text-secondary hover:bg-white hover:border-[#735c00] hover:text-[#735c00] transition-all"
           >
             <span className="material-symbols-outlined text-[18px]">chevron_right</span>
           </button>
@@ -260,9 +295,8 @@ const Landing = () => {
           </div>
 
           <button
-            onClick={() => scrollToIndex(Math.min(TOTAL - 1, activeIdx + 1))}
-            disabled={activeIdx === TOTAL - 1}
-            className="w-9 h-9 rounded-full border border-outline-variant/40 flex items-center justify-center text-secondary hover:bg-white hover:border-[#735c00] hover:text-[#735c00] transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+            onClick={() => scrollToIndex((activeIdx + 1) % TOTAL)}
+            className="w-9 h-9 rounded-full border border-outline-variant/40 flex items-center justify-center text-secondary hover:bg-white hover:border-[#735c00] hover:text-[#735c00] transition-all"
           >
             <span className="material-symbols-outlined text-[18px]">chevron_left</span>
           </button>
