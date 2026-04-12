@@ -43,12 +43,6 @@ const MobileNav = () => {
         <span className="font-label text-[10px] mt-1">الولاء</span>
       </button>
 
-      <button 
-        className="flex flex-col items-center justify-center text-secondary font-medium active:translate-y-[-2px] transition-transform"
-      >
-        <span className="material-symbols-outlined">person</span>
-        <span className="font-label text-[10px] mt-1">حسابي</span>
-      </button>
     </nav>
   );
 };
