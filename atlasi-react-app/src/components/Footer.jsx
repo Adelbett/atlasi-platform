@@ -1,69 +1,74 @@
 import React from 'react';
-import { FiPhone, FiMail, FiMapPin, FiInstagram, FiTwitter, FiFacebook } from 'react-icons/fi';
 
 const Footer = () => {
   return (
-    <footer id="contact" style={{ background: 'var(--bg-void)', borderTop: '1px solid var(--border-glass)', padding: '4rem 2rem 2rem', marginTop: 'auto' }}>
-      <div className="grid-responsive" style={{ gap: '3rem', maxWidth: '1200px', margin: '0 auto', borderBottom: '1px solid var(--border-glass)', paddingBottom: '3rem' }}>
-         
-         {/* Brand Section */}
-         <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.5rem' }}>
-              <img src="/image/logo/72673ecd-fec0-44e8-ab40-c520e10e98a7.jpg" alt="Logo" style={{ height: '50px', borderRadius: '8px' }} />
-              <span style={{ fontSize: '1.5rem', fontWeight: '900', fontFamily: 'var(--font-display)', color: 'var(--text-white)' }}>مظلات الأطلسي</span>
-            </div>
-            <p className="text-gray" style={{ marginBottom: '1.5rem', maxWidth: '300px' }}>
-              الرواد في تصميم وتنفيذ المظلات الفاخرة للسيارات والحدائق في المملكة العربية السعودية. جودة تدوم طويلاً وتصاميم تواكب العصر.
-            </p>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-               <a href="#" style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', border: '1px solid var(--border-glass)' }}><FiInstagram size={20} /></a>
-               <a href="#" style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', border: '1px solid var(--border-glass)' }}><FiTwitter size={20} /></a>
-               <a href="#" style={{ width: '40px', height: '40px', borderRadius: '50%', background: '#FFF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', border: '1px solid var(--border-glass)' }}><FiFacebook size={20} /></a>
-            </div>
-         </div>
+    <footer className="bg-surface border-t border-outline-variant/10">
+      <div className="max-w-7xl mx-auto px-12 py-14 grid grid-cols-1 md:grid-cols-3 gap-10 text-right">
 
-         {/* Loyalty Features */}
-         <div>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--text-white)' }}>مزايا الولاء</h3>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--text-gray)' }}>
-              <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <span className="text-gold" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>📲</span>
-                <span>
-                  <strong style={{ color: 'var(--text-white)' }}>إصدار تلقائي</strong><br />
-                  تُرسل للعميل عبر واتساب بعد التركيب مباشرة
-                </span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <span className="text-gold" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>📱</span>
-                <span>
-                  <strong style={{ color: 'var(--text-white)' }}>مرتبطة برقم الجوال</strong><br />
-                  الخصومات محفوظة في النظام ولا تنتهي
-                </span>
-              </li>
-              <li style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
-                <span className="text-gold" style={{ fontSize: '1.1rem', lineHeight: 1.4 }}>🎁</span>
-                <span>
-                  <strong style={{ color: 'var(--text-white)' }}>قابلة للإهداء</strong><br />
-                  شارك رمز خصمك مع العائلة والأصدقاء
-                </span>
-              </li>
-            </ul>
-         </div>
+        {/* Brand */}
+        <div className="space-y-5">
+          {/* Logo + Name */}
+          <div className="flex items-center gap-3 justify-end">
+            <div>
+              <p className="text-xl font-headline font-bold text-primary leading-tight">مظلات الأطلسي</p>
+              <p className="text-[10px] text-secondary tracking-widest uppercase">Al Atlashi Shades</p>
+            </div>
+            <img
+              src="/image/logo/72673ecd-fec0-44e8-ab40-c520e10e98a7-removebg-preview.png"
+              alt="شعار الأطلسي"
+              className="w-14 h-14 object-contain flex-shrink-0"
+            />
+          </div>
+          <p className="text-xs leading-relaxed text-secondary font-medium">
+            الرواد في تصميم وتنفيذ المظلات الفاخرة للسيارات والحدائق في المملكة العربية السعودية. جودة تدوم طويلاً وتصاميم تواكب العصر.
+          </p>
+          <div className="flex gap-3 justify-end">
+            <a className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all" href="#">
+              <span className="material-symbols-outlined text-sm">public</span>
+            </a>
+            <a className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all" href="#">
+              <span className="material-symbols-outlined text-sm">alternate_email</span>
+            </a>
+            <a className="w-8 h-8 rounded-full border border-outline-variant/30 flex items-center justify-center text-primary hover:bg-primary hover:text-white transition-all" href="#">
+              <span className="material-symbols-outlined text-sm">share</span>
+            </a>
+          </div>
+        </div>
 
-         {/* Contact Info */}
-         <div>
-            <h3 style={{ fontSize: '1.2rem', marginBottom: '1.5rem', color: 'var(--text-white)' }}>تواصل معنا</h3>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '1rem', color: 'var(--text-gray)' }}>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FiMapPin className="text-gold" /> الرياض، المملكة العربية السعودية</li>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FiPhone className="text-gold" /> <span style={{ fontFamily: 'var(--font-numbers)' }}>+966 50 123 4567</span></li>
-              <li style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><FiMail className="text-gold" /> <span style={{ fontFamily: 'var(--font-numbers)' }}>contact@atlasi.sa</span></li>
-            </ul>
-         </div>
+        {/* Quick Links */}
+        <div className="space-y-5">
+          <h5 className="font-headline font-bold text-[10px] tracking-widest uppercase text-on-surface">روابط سريعة</h5>
+          <ul className="space-y-3 text-[11px] font-medium text-secondary list-none p-0">
+            <li><a className="hover:text-primary transition-colors" href="#">سياسة الخصوصية</a></li>
+            <li><a className="hover:text-primary transition-colors" href="#">شروط الخدمة</a></li>
+            <li><a className="hover:text-primary transition-colors" href="#">مواقع المعارض</a></li>
+            <li><a className="hover:text-primary transition-colors" href="#">الدعم والمساعدة</a></li>
+          </ul>
+        </div>
+
+        {/* Contact */}
+        <div className="space-y-5">
+          <h5 className="font-headline font-bold text-[10px] tracking-widest uppercase text-on-surface">تواصل معنا</h5>
+          <ul className="space-y-4 text-[11px] font-medium text-secondary list-none p-0">
+            <li className="flex items-start gap-3 justify-end">
+              <span>الرياض، المملكة العربية السعودية</span>
+              <span className="material-symbols-outlined text-primary text-base flex-shrink-0">location_on</span>
+            </li>
+            <li className="flex items-center gap-3 justify-end">
+              <span dir="ltr">+966 50 123 4567</span>
+              <span className="material-symbols-outlined text-primary text-base flex-shrink-0">call</span>
+            </li>
+            <li className="flex items-center gap-3 justify-end">
+              <span>contact@atlasi.sa</span>
+              <span className="material-symbols-outlined text-primary text-base flex-shrink-0">mail</span>
+            </li>
+          </ul>
+        </div>
 
       </div>
-      
-      <div style={{ textAlign: 'center', paddingTop: '2rem', color: 'var(--text-gray)', fontSize: '0.9rem' }}>
-         <p>© {new Date().getFullYear()} مظلات الأطلسي. جميع الحقوق محفوظة.</p>
+
+      <div className="max-w-7xl mx-auto px-12 py-6 border-t border-outline-variant/10 text-center text-[9px] font-bold tracking-widest text-secondary/60 uppercase">
+        © {new Date().getFullYear()} مظلات الأطلسي — Al Atlashi Architectural Shades. جميع الحقوق محفوظة.
       </div>
     </footer>
   );

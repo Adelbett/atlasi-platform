@@ -10,13 +10,13 @@ export const useStore = create(
       nextStep: () =>
         set((state) => {
           let next = state.currentStep + 1;
-          if (next === 4 && (state.design === 'sahra' || state.design === 'neom')) next = 5;
+          if (next === 4 && state.design === 'sahara') next = 5;
           return { currentStep: Math.min(next, 9) };
         }),
       prevStep: () =>
         set((state) => {
           let prev = state.currentStep - 1;
-          if (prev === 4 && (state.design === 'sahra' || state.design === 'neom')) prev = 3;
+          if (prev === 4 && state.design === 'sahara') prev = 3;
           return { currentStep: Math.max(prev, 0) };
         }),
 
@@ -25,7 +25,7 @@ export const useStore = create(
       customerPhone: '',
       design: '',
       size: '',
-      mounting: '',
+      fixation: '',
       color: 'beige', // default color
       address: '',
       notes: '',
@@ -41,7 +41,7 @@ export const useStore = create(
           customerPhone: '',
           design: '',
           size: '',
-          mounting: '',
+          fixation: '',
           color: 'beige',
           address: '',
           notes: '',

@@ -1,4 +1,5 @@
 import React from 'react';
+import './App.css';
 import { useStore } from './store';
 import { AnimatePresence, motion } from 'framer-motion';
 import Landing from './components/Landing';
@@ -22,7 +23,6 @@ function App() {
               key="landing"
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.5 }}
-              style={{ width: '100%', maxWidth: '1200px', margin: '0 auto' }}
             >
               <Landing />
             </motion.div>
@@ -40,7 +40,7 @@ function App() {
         </AnimatePresence>
       </main>
 
-      <Footer />
+      {currentStep === 0 && <Footer />}
 
       {/* Floating WhatsApp */}
       <a 

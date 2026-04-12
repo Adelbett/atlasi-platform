@@ -6,36 +6,38 @@ const Header = () => {
   const currentStep = useStore(state => state.currentStep);
 
   return (
-    <header style={{ 
-      padding: '1rem 2rem', 
-      display: 'flex', 
-      justifyContent: 'space-between', 
-      alignItems: 'center', 
-      background: '#FFFFFF', 
-      borderBottom: '1px solid var(--border-glass)', 
-      position: 'sticky', 
-      top: 0, 
-      zIndex: 100,
-      boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
-    }}>
-      <div 
-        style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', cursor: 'pointer' }}
-        onClick={() => setStep(0)}
-      >
-        <img src="/image/logo/72673ecd-fec0-44e8-ab40-c520e10e98a7.jpg" alt="Logo Atlasi" style={{ height: '40px', borderRadius: '8px' }} />
-        <span style={{ color: 'var(--text-white)', fontSize: '1.2rem', fontWeight: '900', fontFamily: 'var(--font-display)' }}>
-          مظلات الأطلسي
-        </span>
-      </div>
+    <nav className="fixed top-0 w-full z-50 bg-[#fcf9f8]/80 backdrop-blur-xl border-b border-outline-variant/10">
+      <div className="max-w-7xl mx-auto px-6 md:px-12 py-3 flex justify-between items-center">
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }}>
-        {currentStep === 0 && (
-          <button className="btn btn-primary" style={{ minHeight: '40px', padding: '0.4rem 1.5rem', fontSize: '0.9rem' }} onClick={() => setStep(1)}>
-            اطلب الآن
-          </button>
-        )}
+        {/* Brand — Logo + Name */}
+        <div
+          className="flex items-center gap-2 cursor-pointer"
+          onClick={() => setStep(0)}
+        >
+          <img
+            src="/image/logo/72673ecd-fec0-44e8-ab40-c520e10e98a7-removebg-preview.png"
+            alt="شعار الأطلسي"
+            className="w-10 h-10 object-contain"
+          />
+          <div>
+            <p className="text-base font-headline font-bold text-primary leading-tight">مظلات الأطلسي</p>
+            <p className="text-[9px] text-secondary tracking-widest uppercase leading-none">Al Atlashi Shades</p>
+          </div>
+        </div>
+
+        {/* Navigation Links (Desktop) */}
+
+
+        {/* CTA */}
+        <button
+          onClick={() => setStep(1)}
+          className="bg-primary text-on-primary px-8 py-2 rounded-lg font-label text-xs font-semibold tracking-wide hover:opacity-90 transition-opacity active:scale-95"
+        >
+          {currentStep > 0 ? `الخطوة ${currentStep}` : 'اطلب الآن'}
+        </button>
+
       </div>
-    </header>
+    </nav>
   );
 };
 
