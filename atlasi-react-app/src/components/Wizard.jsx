@@ -279,7 +279,7 @@ const Step1 = () => {
               <input
                 className="block w-full pr-12 pl-4 py-4 bg-white/50 border border-neutral-100 rounded-xl text-base text-right transition-all focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-[#1c1b1b] placeholder:text-neutral-300 outline-none"
                 dir="ltr"
-                placeholder="+966 5X XXX XXXX"
+                placeholder=" 5X XXX XXXX"
                 type="tel"
                 value={customerPhone}
                 onChange={(e) => updateField('customerPhone', e.target.value)}
