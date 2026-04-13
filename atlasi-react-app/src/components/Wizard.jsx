@@ -597,7 +597,7 @@ const Step6 = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(snapshot)
       });
-    } catch (_) {}
+    } catch (_) { }
     saveCancellation(snapshot);
   };
 
@@ -660,24 +660,17 @@ const Step6 = () => {
           </div>
 
           {/* وسائل الدفع */}
-          <div className="rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-4 flex flex-col gap-3">
-            <p className="text-[10px] font-bold tracking-widest text-secondary text-right">وسائل الدفع المتاحة</p>
-            <div className="flex items-center gap-3 flex-wrap justify-end">
-              {/* Tabby */}
-              <div className="flex items-center gap-1.5 bg-[#3BBEAE]/10 border border-[#3BBEAE]/40 rounded-lg px-3 py-1.5">
-                <span className="font-black text-[#1a9e8f] text-sm">تابي</span>
-                <span className="font-black text-[#1a9e8f] text-[10px] tracking-wider">Tabby</span>
-              </div>
-              {/* Tamara */}
-              <div className="flex items-center gap-1.5 bg-[#F05A28]/10 border border-[#F05A28]/40 rounded-lg px-3 py-1.5">
-                <span className="font-black text-[#d44a1c] text-sm">تمارا</span>
-                <span className="font-black text-[#d44a1c] text-[10px] tracking-wider">Tamara</span>
-              </div>
-            </div>
-            <p className="text-xs text-secondary text-right flex items-center justify-end gap-1.5">
-              <span className="material-symbols-outlined text-[#735c00] text-base" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
-              يمكنك الدفع على 4 مراحل — بدون فوائد
+          <div className="rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-5 flex flex-col items-center gap-3 text-center">
+            <p className="text-[11px] font-bold tracking-widest text-secondary">وسائل الدفع المتاحة</p>
+            <p className="text-xs text-[#735c00] flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
+              يمكنك الدفع على 4 مراحل
             </p>
+            <img
+              src="/image/tabay-tamara.jpg"
+              alt="Tabby & Tamara"
+              className="w-full max-w-[260px] object-contain rounded-lg"
+            />
           </div>
 
           {/* أزرار الإجراء */}
@@ -1028,8 +1021,8 @@ const CancelStep = () => {
   const last = cancelledOrders[cancelledOrders.length - 1];
 
   const designLabel = last?.design === 'malaki' ? 'ملكي' : last?.design === 'neom' ? 'نيوم' : 'صحراء';
-  const sizeLabel   = last?.size === 'double' ? 'مزدوجة' : 'مفردة';
-  const colorLabel  = last?.color === 'noir' ? 'أسود' : 'بيج';
+  const sizeLabel = last?.size === 'double' ? 'مزدوجة' : 'مفردة';
+  const colorLabel = last?.color === 'noir' ? 'أسود' : 'بيج';
 
   return (
     <div className="min-h-screen bg-surface flex flex-col font-body pt-16">
