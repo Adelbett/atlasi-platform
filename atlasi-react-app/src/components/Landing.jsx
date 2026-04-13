@@ -30,11 +30,10 @@ const projectCards = [
 ];
 
 const loyaltySteps = [
-  { num: '1', title: 'المستوى الأساسي', sub: 'إصدار فوري والخصم الأول' },
-  { num: '2', title: 'المستوى الفضي', sub: 'خصم 5% على الصيانة الدورية' },
-  { num: '3', title: 'المستوى الذهبي', sub: 'خصم 10% على ثاني مظلة' },
-  { num: '4', title: 'مستوى النخبة', sub: 'خصم 15% وصيانة سنوية مجانية' },
-  { num: '★', title: 'كبار العملاء', sub: 'تغطية شاملة ومزايا حصرية (50%)', highlight: true },
+  { num: '🥇', title: 'الطلب الثاني', sub: 'خصم 5%' },
+  { num: '🥈', title: 'الطلب الثالث', sub: 'خصم 5%' },
+  { num: '🥉', title: 'الطلب الرابع', sub: 'خصم 5%' },
+  { num: '🏆', title: 'الطلب الخامس', sub: 'خصم 50% — نصف السعر', highlight: true },
 ];
 
 const TOTAL = projectCards.length;
@@ -235,7 +234,7 @@ const Landing = () => {
             </div>
             <div className="text-right">
               <p className="font-bold text-[#1c1b1b] text-base leading-tight">حماية قصوى</p>
-              <p className="text-secondary text-[10px] mt-1">عازل حراري بنسبة 100%</p>
+              <p className="text-secondary text-[10px] mt-1">عازل حراري بنسبة 95%</p>
             </div>
           </div>
 
@@ -363,7 +362,11 @@ const Landing = () => {
       <section className="py-12 md:py-24 px-6 bg-surface-container-lowest" id="loyalty-journey">
         <div className="max-w-4xl mx-auto text-center">
           <h2 className="text-3xl md:text-4xl font-bold mb-4 text-on-surface">رحلة الولاء الذهبية</h2>
-          <p className="text-secondary mb-16">كل طلب يقربك من مزايا استثنائية</p>
+          <p className="text-secondary mb-3">كل طلب يقربك من مزايا استثنائية</p>
+          <div className="inline-flex items-center gap-2 bg-[#fdf9ef] border border-[#D4AF37]/40 rounded-full px-4 py-2 mb-12">
+            <span className="material-symbols-outlined text-[#D4AF37] text-base" style={{ fontVariationSettings: "'FILL' 1" }}>smartphone</span>
+            <span className="text-sm font-bold text-[#735b00]">المزايا محفوظة برقم جوالك</span>
+          </div>
 
           {/* Mobile Vertical Timeline */}
           <div className="relative flex flex-col gap-10 md:hidden text-right pr-6">

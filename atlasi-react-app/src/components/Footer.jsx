@@ -21,7 +21,7 @@ const Footer = () => {
           <div className="flex flex-col gap-5">
             <h5 className="font-bold footer-title text-lg">تواصل معنا</h5>
             <ul className="flex flex-col gap-3 list-none footer-links">
-              <li className="text-sm opacity-60">الرياض، المملكة</li>
+              <li className="text-sm opacity-60">الدمام، المملكة العربية السعودية</li>
               <li className="text-sm opacity-60" dir="ltr">+966 54 810 5757</li>
               <li className="text-sm opacity-60">info@atlasi.sa</li>
             </ul>
@@ -30,7 +30,11 @@ const Footer = () => {
 
       </div>
 
-      <div className="max-w-7xl mx-auto mt-16 footer-bottom flex flex-col md:flex-row justify-between items-center gap-4">
+
+
+
+
+      <div className="max-w-7xl mx-auto mt-10 footer-bottom flex flex-col md:flex-row justify-between items-center gap-4">
         <p>© {new Date().getFullYear()} جميع الحقوق محفوظة للأطلسي للمظلات</p>
         <div className="flex gap-6">
           <a href="#" className="hover:opacity-100 transition-opacity">سياسة الخصوصية</a>

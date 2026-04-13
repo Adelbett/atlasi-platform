@@ -30,9 +30,19 @@ export const useStore = create(
       address: '',
       notes: '',
       finalId: '',
+      cancelledOrders: [],
 
       // Setters
       updateField: (field, value) => set({ [field]: value }),
+
+      saveCancellation: (orderSnapshot) =>
+        set((state) => ({
+          cancelledOrders: [
+            ...state.cancelledOrders,
+            { ...orderSnapshot, cancelledAt: new Date().toISOString() }
+          ],
+          currentStep: 9
+        })),
 
       resetOrder: () =>
         set({

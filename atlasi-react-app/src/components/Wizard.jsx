@@ -107,15 +107,15 @@ const WizardStyles = () => (
 // ─── Step Progress Bar ──────────────────────────────────────────────────────
 
 const STEP_ITEMS = [
-  { num: 1, arabicNum: '١', label: 'المعلومات الشخصية', wizardStep: 1 },
-  { num: 2, arabicNum: '٢', label: 'اختيار التصميم', wizardStep: 2 },
-  { num: 3, arabicNum: '٣', label: 'الهيكل والتركيب', wizardStep: 3 },
-  { num: 4, arabicNum: '٤', label: 'القماش والخامة', wizardStep: 5 },
-  { num: 5, arabicNum: '٥', label: 'مراجعة الطلب', wizardStep: 6 },
-  { num: 6, arabicNum: '٦', label: 'الموقع', wizardStep: 7 },
+  { num: 1, arabicNum: '1', label: 'المعلومات الشخصية', wizardStep: 1 },
+  { num: 2, arabicNum: '2', label: 'اختيار التصميم', wizardStep: 2 },
+  { num: 3, arabicNum: '3', label: 'الهيكل والتركيب', wizardStep: 3 },
+  { num: 4, arabicNum: '4', label: 'هيكل', wizardStep: 5 },
+  { num: 5, arabicNum: '5', label: 'مراجعة الطلب', wizardStep: 6 },
+  { num: 6, arabicNum: '6', label: 'الموقع', wizardStep: 7 },
 ];
 
-const arabicNums = ['', '١', '٢', '٣', '٤', '٥', '٦'];
+const arabicNums = ['', '1', '2', '3', '4', '5', '6'];
 
 const getActiveIndicator = (cs) => {
   if (cs <= 1) return 1;
@@ -136,7 +136,7 @@ const StepProgressBar = ({ currentStep, setStep }) => {
       {/* Mobile View */}
       <div className="md:hidden">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-xs text-secondary">الخطوة {arabicNums[activeIndicator]} من ٦</span>
+          <span className="text-xs text-secondary">الخطوة {arabicNums[activeIndicator]} من 6</span>
           <span className="text-sm font-bold text-primary">{currentStepItem.label}</span>
         </div>
         <div className="w-full bg-outline-variant/20 rounded-full h-1.5">
@@ -462,7 +462,7 @@ const Step3 = () => {
 const Step4 = () => {
   const { design, size, fixation, color, updateField, nextStep, prevStep } = useStore();
   const types = [
-    { id: 'wall', label: 'معلقة على الجدار', desc: 'تثبيت مباشر على الجدار بدون أعمدة أرضية، لمظهر عصري وأنيق', icon: 'architecture' },
+    { id: 'wall', label: 'معلقة على الجدار', desc: 'تثبيت مباشر على الجدار بدون أعمدة أرضية، لمظهر عصري وأنيق', },
     { id: 'column', label: 'على أعمدة', desc: 'تثبيت على أعمدة مثبتة في الأرض لضمان الثبات العالي', icon: '' },
   ];
   const previewImg = getImageName(design, size, fixation, color || 'beige');
@@ -514,8 +514,7 @@ const Step4 = () => {
 
         <div className="mt-8 md:mt-12 flex items-center gap-4">
           <button onClick={nextStep} disabled={!fixation} className="flex-1 py-4 md:py-5 gold-gradient text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-center min-h-[52px]">
-            الاستمرار للون القماش
-          </button>
+            الاستمرار للون الهيكل          </button>
           <button onClick={prevStep} className="w-14 md:w-20 py-4 md:py-5 rounded-xl border-2 border-outline-variant/30 text-secondary hover:bg-white transition-all flex items-center justify-center min-h-[52px]">
             <span className="material-symbols-outlined">arrow_forward</span>
           </button>
@@ -525,13 +524,13 @@ const Step4 = () => {
   );
 };
 
-// ─── Step 5: القماش واللون ───────────────────────────────────────────────────
+// ─── Step 5: الهيكل واللون ───────────────────────────────────────────────────
 
 const Step5 = () => {
   const { design, size, fixation, color, updateField, nextStep, prevStep } = useStore();
   const colors = [
     { id: 'beige', label: 'بيج', hex: '#F5F5DC' },
-    { id: 'noir', label: 'أسود ملكي', hex: '#1A1A1A' }
+    { id: 'noir', label: 'أسود', hex: '#1A1A1A' }
   ];
   const previewImg = getImageName(design, size, fixation, color);
 
@@ -543,8 +542,8 @@ const Step5 = () => {
 
       <div className="w-full md:w-[420px] static md:sticky md:top-36">
         <div className="mb-8">
-          <h1 className="text-3xl md:text-4xl font-black text-on-surface leading-tight mb-3">اختر لون القماش</h1>
-          <p className="text-secondary leading-relaxed text-sm">اختر من بين مجموعتنا الحصرية من الأقمشة المقاومة للعوامل الجوية.</p>
+          <h1 className="text-3xl md:text-4xl font-black text-on-surface leading-tight mb-3">اختر لون هيكل</h1>
+          <p className="text-secondary leading-relaxed text-sm">اختر من بين مجموعتنا الحصرية من الهياكل المقاومة للعوامل الجوية.</p>
         </div>
 
         <div className="space-y-6">
@@ -587,7 +586,21 @@ const Step5 = () => {
 // ─── Step 6: مراجعة الطلب ────────────────────────────────────────────────────
 
 const Step6 = () => {
-  const { design, size, fixation, color, nextStep, prevStep } = useStore();
+  const { design, size, fixation, color, customerName, customerPhone, nextStep, prevStep, saveCancellation } = useStore();
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  const confirmCancel = async () => {
+    const snapshot = { customerName, customerPhone, design, size, fixation, color, status: 'ملغى' };
+    try {
+      await fetch('http://localhost:8080/api/admin/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(snapshot)
+      });
+    } catch (_) {}
+    saveCancellation(snapshot);
+  };
+
   const previewImg = getImageName(design, size, fixation, color) || 'malaki_single_column_beige.png';
 
   return (
@@ -620,8 +633,8 @@ const Step6 = () => {
             </div>
             <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
               <div>
-                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">القماش والخامة</span>
-                <p className="text-base md:text-lg font-semibold">{color === 'noir' ? 'أسود ملكي فاخر' : 'بيج كلاسيك ناعم'}</p>
+                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">هيكل</span>
+                <p className="text-base md:text-lg font-semibold">{color === 'noir' ? 'أسود' : 'بيج'}</p>
               </div>
               <div className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ${color === 'noir' ? 'bg-[#1A1A1A]' : 'bg-[#F5F5DC]'}`} />
             </div>
@@ -635,45 +648,85 @@ const Step6 = () => {
               </div>
             )}
             {/* السعر داخل نفس الكادر */}
-            {(() => {
-              const p = calculatePrice(design, size, fixation, color);
-              if (!p) return null;
-              return (
-                <div className="flex justify-between items-center pt-1">
-                  <div>
-                    <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نطاق السعر المتوقع</span>
-                    <p className="text-xl md:text-2xl font-extrabold text-[#735c00]">
-                      {p.fixed
-                        ? `${p.sellMin.toLocaleString()} ر.س`
-                        : `من ${p.sellMin.toLocaleString()} إلى ${p.sellMax.toLocaleString()} ر.س`}
-                    </p>
-                  </div>
-                  <span className="material-symbols-outlined text-[#735c00]/40 text-3xl">payments</span>
-                </div>
-              );
-            })()}
+            <div className="flex justify-between items-center pt-1">
+              <div>
+                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نطاق السعر المتوقع</span>
+                <p className="text-xl md:text-2xl font-extrabold text-[#735c00]">
+                  من 1,899 إلى 2,599 ر.س
+                </p>
+              </div>
+              <span className="material-symbols-outlined text-[#735c00]/40 text-3xl">payments</span>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4">
+          {/* وسائل الدفع */}
+          <div className="rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-4 flex flex-col gap-3">
+            <p className="text-[10px] font-bold tracking-widest text-secondary text-right">وسائل الدفع المتاحة</p>
+            <div className="flex items-center gap-3 flex-wrap justify-end">
+              {/* Tabby */}
+              <div className="flex items-center gap-1.5 bg-[#3BBEAE]/10 border border-[#3BBEAE]/40 rounded-lg px-3 py-1.5">
+                <span className="font-black text-[#1a9e8f] text-sm">تابي</span>
+                <span className="font-black text-[#1a9e8f] text-[10px] tracking-wider">Tabby</span>
+              </div>
+              {/* Tamara */}
+              <div className="flex items-center gap-1.5 bg-[#F05A28]/10 border border-[#F05A28]/40 rounded-lg px-3 py-1.5">
+                <span className="font-black text-[#d44a1c] text-sm">تمارا</span>
+                <span className="font-black text-[#d44a1c] text-[10px] tracking-wider">Tamara</span>
+              </div>
+            </div>
+            <p className="text-xs text-secondary text-right flex items-center justify-end gap-1.5">
+              <span className="material-symbols-outlined text-[#735c00] text-base" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
+              يمكنك الدفع على 4 مراحل — بدون فوائد
+            </p>
+          </div>
+
+          {/* أزرار الإجراء */}
+          <div className="flex flex-col sm:flex-row gap-3">
             <button onClick={nextStep} className="flex-1 py-4 md:py-5 px-6 rounded-xl gold-gradient text-white font-bold text-base shadow-lg transition-all flex items-center justify-center gap-3 min-h-[52px]">
               <span>تأكيد ومعاينة الموقع</span>
               <span className="material-symbols-outlined">arrow_back</span>
             </button>
-            <button onClick={prevStep} className="w-full sm:w-16 md:w-20 py-4 md:py-5 rounded-xl border-2 border-outline-variant/30 text-secondary hover:bg-white transition-all flex items-center justify-center min-h-[52px]">
+            <button onClick={prevStep} className="w-full sm:w-14 py-4 md:py-5 rounded-xl border-2 border-outline-variant/30 text-secondary hover:bg-white transition-all flex items-center justify-center min-h-[52px]">
               <span className="material-symbols-outlined">edit</span>
+            </button>
+            <button
+              onClick={() => setShowCancelModal(true)}
+              className="w-full sm:w-14 py-4 md:py-5 rounded-xl border-2 border-red-200 text-red-500 hover:bg-red-50 transition-all flex items-center justify-center min-h-[52px]"
+              title="إلغاء الطلب"
+            >
+              <span className="material-symbols-outlined">cancel</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-4 px-4 bg-amber-50/50 p-4 rounded-xl border border-amber-100">
-            <span className="material-symbols-outlined text-[#735c00]" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
-            <div className="flex flex-col">
-              <p className="text-xs font-bold text-[#735c00]">الخامة المعتمدة: {(() => {
-                const p = calculatePrice(design, size, fixation, color);
-                return `${p?.colorLabel || ''} — ${p?.qualityNote || ''}`;
-              })()}</p>
-              <p className="text-[10px] text-zinc-500 leading-tight mt-0.5">سيتم تزويدك بالمبلغ النهائي بدقة بعد زيارة المندوب ورفع القياسات.</p>
+          {/* ── Popup تأكيد الإلغاء ── */}
+          {showCancelModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(4px)' }}>
+              <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm text-center">
+                <div className="w-16 h-16 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-5">
+                  <span className="material-symbols-outlined text-3xl text-red-400">warning</span>
+                </div>
+                <h3 className="text-xl font-bold text-on-surface mb-2">تأكيد إلغاء الطلب</h3>
+                <p className="text-secondary text-sm mb-6 leading-relaxed">
+                  هل أنت متأكد من إلغاء هذا الطلب؟ سيتم حفظ بياناتك للمتابعة لاحقاً.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={confirmCancel}
+                    className="w-full py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-bold transition-all"
+                  >
+                    نعم، إلغاء الطلب
+                  </button>
+                  <button
+                    onClick={() => setShowCancelModal(false)}
+                    className="w-full py-3 rounded-xl border-2 border-outline-variant/30 text-secondary font-bold hover:bg-surface-container-low transition-all"
+                  >
+                    لا، متابعة الطلب
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
+
         </div>
       </div>
     </div>
@@ -824,6 +877,13 @@ const Step7 = () => {
         </div>
 
         <div className="mt-auto pt-8 flex flex-col gap-4">
+          {/* تنبيه إلزامي قبل التأكيد */}
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl p-4 text-right">
+            <span className="material-symbols-outlined text-[#735c00] shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+            <p className="text-xs leading-relaxed text-[#735c00] font-bold">
+              الخامة المعتمدة: أسود. سيتم تزويدك بالمبلغ النهائي بدقة بعد زيارة المندوب ورفع القياسات.
+            </p>
+          </div>
           <button
             onClick={submitOrder}
             disabled={isSubmitting}
@@ -845,7 +905,7 @@ const Confirmation = () => {
 
   const designLabel = design === 'malaki' ? 'ملكي' : design === 'neom' ? 'نيوم' : 'صحراء';
   const sizeLabel = size === 'double' ? 'مظلة سيارتين فأكثر' : 'مظلة سيارة واحدة';
-  const colorLabel = color === 'noir' ? 'أسود ملكي فاخر' : 'بيج كلاسيك';
+  const colorLabel = color === 'noir' ? 'أسود' : 'بيج كلاسيك';
   const fixationLabel = fixation === 'wall' ? 'معلقة على الجدار' : 'على أعمدة';
 
   return (
@@ -873,7 +933,7 @@ const Confirmation = () => {
             {/* رسالة ١٢ ساعة */}
             <div className="max-w-lg mx-auto bg-amber-50 border border-amber-200/60 rounded-xl p-4 mb-6 text-right">
               <p className="text-sm md:text-base leading-relaxed text-on-surface">
-                سيتواصل معكم فريقنا خلال <span className="font-bold text-[#735c00]">١٢ ساعة</span> لتحديد موعد الزيارة والمعاينة المجانية.
+                سيتواصل معكم فريقنا خلال <span className="font-bold text-[#735c00]">12 ساعة</span> لتحديد موعد الزيارة والمعاينة المجانية.
               </p>
             </div>
 
@@ -929,7 +989,7 @@ const Confirmation = () => {
                       ? <>سعر هذا الموديل ثابت بـ <span className="font-bold text-[#735c00]">{p.sellMin.toLocaleString()} ريال</span></>
                       : <>حسب تفاصيلك، سيكون السعر في حدود <span className="font-bold text-[#735c00]">من {p.sellMin.toLocaleString()} إلى {p.sellMax.toLocaleString()} ريال</span></>
                     }
-                    {' — '}خامة <span className="font-semibold">{p.colorLabel}</span> — {p.qualityNote}.
+                    {' — '}خامة <span className="font-semibold">{p.colorLabel}</span>.
                   </p>
                   <p className="text-xs text-secondary mt-2">بعد زيارة المندوب ورفع القياسات اللازمة، سيتم تزويدك بالمبلغ النهائي بشكل دقيق.</p>
                 </div>
@@ -964,16 +1024,58 @@ const Confirmation = () => {
 // ─── صفحة الإلغاء ────────────────────────────────────────────────────────────
 
 const CancelStep = () => {
-  const { setStep } = useStore();
+  const { setStep, cancelledOrders } = useStore();
+  const last = cancelledOrders[cancelledOrders.length - 1];
+
+  const designLabel = last?.design === 'malaki' ? 'ملكي' : last?.design === 'neom' ? 'نيوم' : 'صحراء';
+  const sizeLabel   = last?.size === 'double' ? 'مزدوجة' : 'مفردة';
+  const colorLabel  = last?.color === 'noir' ? 'أسود' : 'بيج';
+
   return (
-    <div className="flex flex-col items-center justify-center py-20 text-center">
-      <div className="w-24 h-24 rounded-full bg-surface-container-low flex items-center justify-center mb-10 mx-auto">
-        <span className="material-symbols-outlined text-5xl text-secondary">sentiment_dissatisfied</span>
-      </div>
-      <h2 className="text-4xl font-bold text-on-surface mb-4">تم إلغاء الطلب</h2>
-      <button className="bg-secondary text-white px-12 py-4 rounded-lg font-bold shadow-lg" onClick={() => setStep(0)}>
-        العودة للرئيسية
-      </button>
+    <div className="min-h-screen bg-surface flex flex-col font-body pt-16">
+      <WizardStyles />
+      <main className="flex-grow flex items-center justify-center py-12 px-4">
+        <div className="w-full max-w-md glass-panel rounded-2xl p-8 text-center shadow-2xl border border-white/20">
+
+          <div className="w-20 h-20 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-6">
+            <span className="material-symbols-outlined text-4xl text-red-400">cancel</span>
+          </div>
+
+          <h2 className="text-3xl font-bold text-on-surface mb-2">تم إلغاء الطلب</h2>
+          <p className="text-secondary text-sm mb-6">تم حفظ بياناتك. يسعدنا خدمتك في أي وقت.</p>
+
+          {last && (
+            <div className="bg-white/80 rounded-xl p-5 mb-6 border border-outline-variant/15 text-right space-y-2">
+              <p className="text-[10px] font-bold tracking-widest text-secondary mb-3">ملخص الطلب الملغى</p>
+              <div className="flex justify-between text-sm"><span className="text-secondary">الاسم</span><span className="font-semibold">{last.customerName}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-secondary">الجوال</span><span className="font-semibold" dir="ltr">{last.customerPhone}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-secondary">التصميم</span><span className="font-semibold">{designLabel}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-secondary">الحجم</span><span className="font-semibold">{sizeLabel}</span></div>
+              <div className="flex justify-between text-sm"><span className="text-secondary">اللون</span><span className="font-semibold">{colorLabel}</span></div>
+              <div className="flex justify-between text-sm pt-2 border-t border-outline-variant/10">
+                <span className="text-secondary">وقت الإلغاء</span>
+                <span className="font-semibold text-[11px]">{new Date(last.cancelledAt).toLocaleString('ar-SA')}</span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => setStep(1)}
+              className="w-full py-4 gold-gradient text-white font-bold rounded-xl shadow-lg"
+            >
+              إعادة الطلب من جديد
+            </button>
+            <button
+              onClick={() => setStep(0)}
+              className="w-full py-3 text-secondary font-bold text-sm hover:text-on-surface transition-colors"
+            >
+              العودة للرئيسية
+            </button>
+          </div>
+
+        </div>
+      </main>
     </div>
   );
 };
