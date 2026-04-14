@@ -7,7 +7,7 @@ const Footer = () => {
 
         <div className="md:max-w-xs space-y-6">
           <div className="flex flex-col gap-2">
-            <h4 className="font-bold footer-title text-2xl">الأطلسي للمظلات</h4>
+            <h4 className="font-bold footer-title text-2xl">مظلات الأطلسي</h4>
             <p className="text-[10px] text-[#D4A017] tracking-[0.2em] opacity-90">رواد حلول التظليل في المملكة</p>
           </div>
           <p className="opacity-60 text-sm leading-relaxed">
@@ -36,10 +36,7 @@ const Footer = () => {
 
       <div className="max-w-7xl mx-auto mt-10 footer-bottom flex flex-col md:flex-row justify-between items-center gap-4">
         <p>© {new Date().getFullYear()} جميع الحقوق محفوظة للأطلسي للمظلات</p>
-        <div className="flex gap-6">
-          <a href="#" className="hover:opacity-100 transition-opacity">سياسة الخصوصية</a>
-          <a href="#" className="hover:opacity-100 transition-opacity">الشروط والأحكام</a>
-        </div>
+        
       </div>
     </footer>
   );

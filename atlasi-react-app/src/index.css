@@ -1,5 +1,5 @@
 *, *::before, *::after {
-  font-family: 'Cairo', sans-serif !important;
+  font-family: 'Cairo', 'Noto Kufi Arabic', 'Noto Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif !important;
 }
 
 .material-symbols-outlined {
@@ -28,8 +28,8 @@
   --shadow-md: 0 10px 15px rgba(0, 0, 0, 0.05);
   --shadow-lg: 0 20px 25px rgba(0, 0, 0, 0.08);
 
-  --font-display: 'Cairo', sans-serif;
-  --font-body: 'Cairo', sans-serif;
+  --font-display: 'Cairo', 'Noto Kufi Arabic', 'Noto Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
+  --font-body: 'Cairo', 'Noto Kufi Arabic', 'Noto Sans Arabic', 'Segoe UI', Tahoma, Arial, sans-serif;
 }
 
 /* ===== HEADER ===== */

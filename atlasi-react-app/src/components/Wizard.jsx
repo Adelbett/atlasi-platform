@@ -17,6 +17,29 @@ const PRICES = {
   'ATL-3B-C': { model: 'ATL-3B-C', cost: 2080, beige: { quality: 'ضمان 38 شهر', cost: 2080 }, noir: { quality: 'ضمان سنة', cost: 1456 }, sellMin: 1899, sellMax: 2599, fixed: false }
 };
 
+// Dimensions from the official size table (Longueur × Largeur)
+const DIMS = {
+  sahra:  { single: '5.8 × 3.5 م', double: '5.8 × 6.0 م' },
+  malaki: { single: '5.0 × 3.0 م', double: '10.0 × 3.0 م' },
+  neom:   { single: '5.0 × 3.0 م', double: '10.0 × 3.0 م' },
+};
+
+const getSizeLabel = (design, size) => {
+  const d = design === 'sahara' ? 'sahra' : (design || 'sahra');
+  const key = size === 'double' ? 'double' : 'single';
+  return DIMS[d]?.[key] || '—';
+};
+
+// Format order ID: e.g. ATL-1-B-AHMED-20260414
+const buildOrderId = (modelCode, customerName) => {
+  // Remove all dashes from product code: ATL-2B-H → ATL2BH, ATL-1S → ATL1S
+  const code = (modelCode || 'ATL').replace(/-/g, '');
+  const firstName = (customerName || 'CLIENT').split(' ')[0].toUpperCase();
+  const d = new Date();
+  const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  return `${code}-${firstName}-${date}`;
+};
+
 const getModelCode = (design, size, fixation) => {
   const d = design === 'sahara' ? 'sahra' : design;
   const s = size || 'single';
@@ -60,6 +83,25 @@ const getImageName = (design, size, fixation, color) => {
   if (d === 'sahra') return `${d}_${s}_${c}.png`;
   return `${d}_${s}_${f}_${c}.png`;
 };
+
+const normalizeSaudiPhone = (value) => {
+  const digits = String(value || '').replace(/\D/g, '');
+  if (!digits) return '';
+
+  if (digits.startsWith('9665')) {
+    return `0${digits.slice(3, 12)}`;
+  }
+  if (digits.startsWith('05')) {
+    return digits.slice(0, 10);
+  }
+  if (digits.startsWith('5')) {
+    return `0${digits.slice(0, 9)}`;
+  }
+
+  return digits.slice(0, 10);
+};
+
+const isValidSaudiPhone = (value) => /^05\d{8}$/.test(normalizeSaudiPhone(value));
 
 const slideVariants = {
   enter: { opacity: 0, y: 10 },
@@ -215,8 +257,8 @@ const Wizard = () => {
             <motion.div key={currentStep} variants={slideVariants} initial="enter" animate="center" exit="exit">
               {currentStep === 1 && <Step1 />}
               {currentStep === 2 && <Step2 />}
-              {currentStep === 3 && <Step3 />}
-              {currentStep === 4 && <Step4 />}
+              {currentStep === 3 && <Step4 />}
+              {currentStep === 4 && <Step3 />}
               {currentStep === 5 && <Step5 />}
               {currentStep === 6 && <Step6 />}
               {currentStep === 7 && <Step7 />}
@@ -232,7 +274,8 @@ const Wizard = () => {
 
 const Step1 = () => {
   const { customerName, customerPhone, updateField, nextStep } = useStore();
-  const valid = customerName.trim().length > 2 && customerPhone.startsWith('05') && customerPhone.length === 10;
+  const normalizedPhone = normalizeSaudiPhone(customerPhone);
+  const valid = customerName.trim().length > 2 && isValidSaudiPhone(customerPhone);
 
   return (
     <div className="min-h-[60vh] py-8 flex flex-col items-center justify-center relative">
@@ -279,12 +322,15 @@ const Step1 = () => {
               <input
                 className="block w-full pr-12 pl-4 py-4 bg-white/50 border border-neutral-100 rounded-xl text-base text-right transition-all focus:bg-white focus:ring-2 focus:ring-black/10 focus:border-[#1c1b1b] placeholder:text-neutral-300 outline-none"
                 dir="ltr"
-                placeholder=" 5X XXX XXXX"
+                placeholder="05XXXXXXXX"
                 type="tel"
                 value={customerPhone}
-                onChange={(e) => updateField('customerPhone', e.target.value)}
+                onChange={(e) => updateField('customerPhone', normalizeSaudiPhone(e.target.value))}
               />
             </div>
+            {customerPhone && !isValidSaudiPhone(customerPhone) && (
+              <p className="text-[10px] text-red-500 text-right">أدخل رقم جوال صحيح (مثال: 05XXXXXXXX أو +9665XXXXXXXX)</p>
+            )}
             <p className="text-[0.625rem] text-neutral-400 flex items-center gap-1.5 justify-end">
               <span>سنستخدم هذا الرقم للتواصل معك بشأن طلبك.</span>
               <span className="material-symbols-outlined text-[10px]">info</span>
@@ -338,11 +384,7 @@ const Step2 = () => {
             onClick={() => updateField('design', d.id)}
             className={`group relative flex flex-col flex-shrink-0 w-[280px] md:w-auto snap-center bg-surface-container-lowest/80 backdrop-blur-md rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer border ${design === d.id ? 'ring-2 ring-[#1c1b1b] border-[#1c1b1b] shadow-2xl' : 'border-surface-container hover:border-[#d0c5af]/30'} active:scale-[0.98]`}
           >
-            {d.featured && (
-              <div className="absolute top-4 right-4 z-10">
-                <div className="bg-[#1c1b1b] text-white px-3 py-0.5 rounded-full text-[9px] font-bold tracking-widest">الأكثر طلباً</div>
-              </div>
-            )}
+            
             <div className="h-[200px] md:h-[220px] overflow-hidden bg-neutral-50 flex items-center justify-center">
               <img alt={d.title} src={d.img} className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110" />
             </div>
@@ -378,7 +420,7 @@ const Step2 = () => {
           disabled={!design}
           className="group flex items-center gap-4 gold-gradient px-8 py-4 rounded-full text-white font-bold shadow-xl shadow-primary/20 hover:shadow-primary/40 transition-all duration-300 disabled:opacity-30 w-full sm:w-auto justify-center min-h-[52px]"
         >
-          <span>المتابعة لاختيار الحجم</span>
+          <span>{design === 'sahara' ? 'المتابعة لاختيار الحجم' : 'المتابعة لطريقة التثبيت'}</span>
           <span className="material-symbols-outlined group-hover:-translate-x-2 transition-transform text-lg">arrow_back</span>
         </button>
       </div>
@@ -390,9 +432,11 @@ const Step2 = () => {
 
 const Step3 = () => {
   const { size, design, color, fixation, updateField, nextStep, prevStep } = useStore();
+  const d = design === 'sahara' ? 'sahra' : (design || 'sahra');
+  const dims = DIMS[d] || DIMS.sahra;
   const options = [
-    { id: 'single', label: 'مظلة سيارة واحدة', desc: 'مثالية للمساحات المحدودة والفلل السكنية.', icon: 'directions_car' },
-    { id: 'double', label: 'مظلة سيارتين ', desc: 'الحل الأمثل للعائلات والمجمعات الواسعة.', icon: 'airport_shuttle' },
+    { id: 'single', label: dims.single, icon: 'directions_car' },
+    { id: 'double', label: dims.double, icon: 'airport_shuttle' },
   ];
   const previewImg = getImageName(design, size, fixation || 'column', color || 'beige');
 
@@ -411,7 +455,7 @@ const Step3 = () => {
         <div className="absolute bottom-4 right-4 md:bottom-6 md:right-6 bg-white/80 backdrop-blur-sm p-3 md:p-4 rounded-xl border border-white/30">
           <span className="text-[10px] text-secondary block mb-1">معاينة الحجم</span>
           <span className="text-sm font-bold text-on-surface">
-            {size === 'single' ? 'مظلة سيارة واحدة' : size === 'double' ? 'مظلة سيارتين فأكثر' : 'اختر الحجم'}
+            {size ? getSizeLabel(design, size) : 'اختر الحجم'}
           </span>
         </div>
       </div>
@@ -435,7 +479,6 @@ const Step3 = () => {
               </div>
               <div className="flex-grow">
                 <h3 className="text-base md:text-lg font-bold mb-1">{o.label}</h3>
-                <p className="text-secondary text-xs leading-relaxed">{o.desc}</p>
               </div>
               <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${size === o.id ? 'border-[#1c1b1b] bg-[#1c1b1b]' : 'border-outline-variant'}`}>
                 {size === o.id && <div className="w-2 h-2 bg-white rounded-full" />}
@@ -446,7 +489,7 @@ const Step3 = () => {
 
         <div className="mt-8 md:mt-12 flex items-center gap-4">
           <button onClick={nextStep} disabled={!size} className="flex-1 py-4 md:py-5 gold-gradient text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-30 text-center min-h-[52px]">
-            الاستمرار لطريقة التثبيت
+            الاستمرار للون الهيكل
           </button>
           <button onClick={prevStep} className="w-14 md:w-20 py-4 md:py-5 rounded-xl border-2 border-outline-variant/30 text-secondary hover:bg-white transition-all flex items-center justify-center min-h-[52px]">
             <span className="material-symbols-outlined">arrow_forward</span>
@@ -514,7 +557,8 @@ const Step4 = () => {
 
         <div className="mt-8 md:mt-12 flex items-center gap-4">
           <button onClick={nextStep} disabled={!fixation} className="flex-1 py-4 md:py-5 gold-gradient text-white font-bold rounded-xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all text-center min-h-[52px]">
-            الاستمرار للون الهيكل          </button>
+            الاستمرار لاختيار الحجم
+          </button>
           <button onClick={prevStep} className="w-14 md:w-20 py-4 md:py-5 rounded-xl border-2 border-outline-variant/30 text-secondary hover:bg-white transition-all flex items-center justify-center min-h-[52px]">
             <span className="material-symbols-outlined">arrow_forward</span>
           </button>
@@ -574,7 +618,7 @@ const Step5 = () => {
             </button>
             <button onClick={prevStep} className="w-full py-3 text-secondary font-bold text-sm hover:text-on-surface transition-colors flex items-center justify-center gap-2 min-h-[48px]">
               <span>العودة للخطوة السابقة</span>
-              <span className="material-symbols-outlined text-lg">arrow_back</span>
+              <span className="material-symbols-outlined text-lg">arrow_forward</span>
             </button>
           </div>
         </div>
@@ -626,17 +670,25 @@ const Step6 = () => {
           <div className="glass-panel p-6 md:p-8 rounded-xl border border-white/20 shadow-xl shadow-[#735c00]/5 flex flex-col gap-4 md:gap-6">
             <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
               <div>
-                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">الأبعاد</span>
-                <p className="text-base md:text-lg font-semibold">{size === 'double' ? 'مزدوجة (سيارتين)' : 'مفردة (سيارة واحدة)'}</p>
+                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1"> الحجم 
+</span>
+                <p className="text-base md:text-lg font-semibold">{getSizeLabel(design, size)}</p>
               </div>
               <span className="material-symbols-outlined text-zinc-400">aspect_ratio</span>
             </div>
             <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
               <div>
                 <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">هيكل</span>
-                <p className="text-base md:text-lg font-semibold">{color === 'noir' ? 'أسود' : 'بيج'}</p>
+                <p className="text-base md:text-lg font-semibold">أسود</p>
               </div>
-              <div className={`w-8 h-8 rounded-full border-2 border-white shadow-sm ${color === 'noir' ? 'bg-[#1A1A1A]' : 'bg-[#F5F5DC]'}`} />
+              <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm bg-[#1A1A1A]" />
+            </div>
+            <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
+              <div>
+                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">قماش</span>
+                <p className="text-base md:text-lg font-semibold">بيج</p>
+              </div>
+              <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm bg-[#F5F5DC]" />
             </div>
             {design !== 'sahara' && (
               <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
@@ -650,7 +702,7 @@ const Step6 = () => {
             {/* السعر داخل نفس الكادر */}
             <div className="flex justify-between items-center pt-1">
               <div>
-                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نطاق السعر المتوقع</span>
+                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نطاق السعر </span>
                 <p className="text-xl md:text-2xl font-extrabold text-[#735c00]">
                   من 1,899 إلى 2,599 ر.س
                 </p>
@@ -748,10 +800,11 @@ const Step7 = () => {
 
     const { customerName, customerPhone, design, size, fixation, color, address } = useStore.getState();
     const modelCode = getModelCode(design, size, fixation);
+    const safePhone = normalizeSaudiPhone(customerPhone);
 
     const orderData = {
       clientName: customerName,
-      clientPhone: customerPhone,
+      clientPhone: safePhone,
       designType: design,
       sizeInfo: size,
       fixationType: fixation,
@@ -771,23 +824,17 @@ const Step7 = () => {
 
       if (response.ok) {
         const result = await response.json();
-        const firstName = (customerName || 'CLIENT').split(' ')[0].toUpperCase();
-        const timestamp = Math.floor(Date.now() / 1000);
-        const finalId = result.confirmationNumber || `ATL-${firstName}-${timestamp}`;
+        const finalId = result.confirmationNumber || buildOrderId(modelCode, customerName);
         updateField('finalId', finalId);
         setStep(8);
       } else {
         console.error('Failed to submit order');
-        const firstName = (customerName || 'CLIENT').split(' ')[0].toUpperCase();
-        const timestamp = Math.floor(Date.now() / 1000);
-        updateField('finalId', `ATL-${firstName}-${timestamp}`);
+        updateField('finalId', buildOrderId(modelCode, customerName));
         setStep(8);
       }
     } catch (error) {
       console.error('Error submitting order:', error);
-      const firstName = (customerName || 'CLIENT').split(' ')[0].toUpperCase();
-      const timestamp = Math.floor(Date.now() / 1000);
-      updateField('finalId', `ATL-${firstName}-${timestamp}`);
+      updateField('finalId', buildOrderId(modelCode, customerName));
       setStep(8);
     } finally {
       setIsSubmitting(false);
@@ -809,8 +856,8 @@ const Step7 = () => {
             style={{ width: '100%', height: '420px' }}
           >
             <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+              attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
             <Marker position={position} icon={new L.Icon({
               iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -874,7 +921,7 @@ const Step7 = () => {
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl p-4 text-right">
             <span className="material-symbols-outlined text-[#735c00] shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
             <p className="text-xs leading-relaxed text-[#735c00] font-bold">
-              الخامة المعتمدة: أسود. سيتم تزويدك بالمبلغ النهائي بدقة بعد زيارة المندوب ورفع القياسات.
+               سيتم تزويدك بالمبلغ النهائي بدقة بعد زيارة المندوب ورفع القياسات
             </p>
           </div>
           <button
@@ -897,8 +944,8 @@ const Confirmation = () => {
   const { finalId, setStep, design, size, color, fixation } = useStore();
 
   const designLabel = design === 'malaki' ? 'ملكي' : design === 'neom' ? 'نيوم' : 'صحراء';
-  const sizeLabel = size === 'double' ? 'مظلة سيارتين فأكثر' : 'مظلة سيارة واحدة';
-  const colorLabel = color === 'noir' ? 'أسود' : 'بيج كلاسيك';
+  const sizeLabel = getSizeLabel(design, size);
+  const colorLabel = color === 'noir' ? 'أسود' : 'بيج ';
   const fixationLabel = fixation === 'wall' ? 'معلقة على الجدار' : 'على أعمدة';
 
   return (
@@ -925,9 +972,9 @@ const Confirmation = () => {
 
             {/* رسالة ١٢ ساعة */}
             <div className="max-w-lg mx-auto bg-amber-50 border border-amber-200/60 rounded-xl p-4 mb-6 text-right">
-              <p className="text-sm md:text-base leading-relaxed text-on-surface">
-                سيتواصل معكم فريقنا خلال <span className="font-bold text-[#735c00]">12 ساعة</span> لتحديد موعد الزيارة والمعاينة المجانية.
-              </p>
+             <p className="text-sm md:text-base leading-relaxed text-on-surface">
+  سيتواصل معكم فريقنا خلال <span className="font-bold text-[#735c00]">12 ساعة</span> لتحديد موعد زيارة موقع التركيب.
+</p>
             </div>
 
             {/* ملخص الطلب */}
@@ -982,7 +1029,6 @@ const Confirmation = () => {
                       ? <>سعر هذا الموديل ثابت بـ <span className="font-bold text-[#735c00]">{p.sellMin.toLocaleString()} ريال</span></>
                       : <>حسب تفاصيلك، سيكون السعر في حدود <span className="font-bold text-[#735c00]">من {p.sellMin.toLocaleString()} إلى {p.sellMax.toLocaleString()} ريال</span></>
                     }
-                    {' — '}خامة <span className="font-semibold">{p.colorLabel}</span>.
                   </p>
                   <p className="text-xs text-secondary mt-2">بعد زيارة المندوب ورفع القياسات اللازمة، سيتم تزويدك بالمبلغ النهائي بشكل دقيق.</p>
                 </div>

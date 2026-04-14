@@ -10,13 +10,14 @@ export const useStore = create(
       nextStep: () =>
         set((state) => {
           let next = state.currentStep + 1;
-          if (next === 4 && state.design === 'sahara') next = 5;
+          // Sahara (ATL-1) has no fixation step — skip step 3 (طريقة التثبيت)
+          if (next === 3 && state.design === 'sahara') next = 4;
           return { currentStep: Math.min(next, 9) };
         }),
       prevStep: () =>
         set((state) => {
           let prev = state.currentStep - 1;
-          if (prev === 4 && state.design === 'sahara') prev = 3;
+          if (prev === 3 && state.design === 'sahara') prev = 2;
           return { currentStep: Math.max(prev, 0) };
         }),
 

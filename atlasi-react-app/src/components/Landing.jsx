@@ -207,7 +207,7 @@ const Landing = () => {
               <span className="material-symbols-outlined text-gold-accent text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
             </div>
             <div className="text-right">
-              <p className="font-bold text-[#1c1b1b] text-base leading-tight">الضمان الفضي: سنتان</p>
+              <p className="font-bold text-[#1c1b1b] text-base leading-tight">الضمان الفضي: 2 سنوات</p>
               <p className="font-bold text-gold-accent text-base leading-tight mt-0.5">الضمان الذهبي: 5 سنوات</p>
               <p className="text-secondary text-[10px] mt-1 pr-0.5">جودة معتمدة وخدمة شاملة</p>
             </div>
@@ -221,9 +221,7 @@ const Landing = () => {
             <div className="text-right">
               <p className="font-extrabold text-[#1c1b1b] text-lg leading-tight uppercase tracking-tight">تركيب سريع</p>
               <p className="text-secondary text-xs mt-1">احترافية في الجدول الزمني</p>
-              <div className="flex gap-1 mt-1.5 justify-end">
-                 {[1,2,3].map(i => <div key={i} className="h-1 w-3 bg-gold-accent/30 rounded-full" />)}
-              </div>
+             
             </div>
           </div>
 
@@ -244,7 +242,7 @@ const Landing = () => {
       {/* ── Product Gallery — Luxe Scroll Snap ── */}
       <section className="py-16 md:py-24 bg-surface-container-low overflow-hidden" id="gallery">
         <div className="mb-10 md:mb-14 flex flex-col items-center text-center px-6">
-          <h2 className="text-4xl md:text-5xl font-extrabold text-[#735c00]">نماذج من أعمالنا الفاخرة</h2>
+          <h2 className="text-4xl md:text-5xl font-extrabold text-[#735c00]">نماذج من أعمالنا </h2>
           <p className="text-secondary text-sm mt-3">اسحب يميناً أو يساراً لاستعراض التصاميم</p>
         </div>
 
