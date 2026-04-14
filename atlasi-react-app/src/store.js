@@ -33,8 +33,15 @@ export const useStore = create(
       finalId: '',
       cancelledOrders: [],
 
+      // Loyalty — calculé après validation du n° de téléphone (Step 1)
+      loyaltyDiscount: 0,    // 0 | 0.05 | 0.50
+      loyaltyTier: '',       // 'جديد' | 'فضي' | 'بلاتيني'
+      loyaltyOrderNum: 1,    // numéro de la commande en cours pour ce client
+
       // Setters
       updateField: (field, value) => set({ [field]: value }),
+      setLoyaltyInfo: (discount, tier, orderNum) =>
+        set({ loyaltyDiscount: discount, loyaltyTier: tier, loyaltyOrderNum: orderNum || 1 }),
 
       saveCancellation: (orderSnapshot) =>
         set((state) => ({
@@ -56,7 +63,10 @@ export const useStore = create(
           color: 'beige',
           address: '',
           notes: '',
-          finalId: ''
+          finalId: '',
+          loyaltyDiscount: 0,
+          loyaltyTier: '',
+          loyaltyOrderNum: 1,
         })
     }),
     {

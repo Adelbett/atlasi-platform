@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
-import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 
 const PRICES = {
@@ -112,8 +112,24 @@ const slideVariants = {
 const MapCenterer = ({ position }) => {
   const map = useMap();
   useEffect(() => {
-    if (position) map.invalidateSize().setView(position, 15, { animate: true });
+    if (!position) return;
+    const center = map.getCenter();
+    const latDiff = Math.abs(center.lat - position[0]);
+    const lngDiff = Math.abs(center.lng - position[1]);
+    if (latDiff > 0.00001 || lngDiff > 0.00001) {
+      map.invalidateSize().setView(position, 15, { animate: true });
+    }
   }, [position, map]);
+  return null;
+};
+
+const MapPositionTracker = ({ onMove }) => {
+  useMapEvents({
+    moveend(e) {
+      const center = e.target.getCenter();
+      onMove([center.lat, center.lng]);
+    }
+  });
   return null;
 };
 
@@ -273,9 +289,25 @@ const Wizard = () => {
 // ─── Step 1: المعلومات الشخصية ───────────────────────────────────────────────
 
 const Step1 = () => {
-  const { customerName, customerPhone, updateField, nextStep } = useStore();
+  const { customerName, customerPhone, updateField, nextStep, setLoyaltyInfo } = useStore();
   const normalizedPhone = normalizeSaudiPhone(customerPhone);
   const valid = customerName.trim().length > 2 && isValidSaudiPhone(customerPhone);
+
+  // ── فحص برنامج الولاء عبر رقم الهاتف ────────────────────────────
+  const [loyaltyStatus, setLoyaltyStatus] = useState(null);
+  useEffect(() => {
+    if (!isValidSaudiPhone(customerPhone)) { setLoyaltyStatus(null); return; }
+    const phone = normalizeSaudiPhone(customerPhone);
+    fetch(`http://localhost:8080/api/loyalty/status/${phone}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setLoyaltyStatus(data);
+          setLoyaltyInfo(data.discountRate || 0, data.tier || '', data.nextOrderNumber || 1);
+        }
+      })
+      .catch(() => null); // silent fail — the API may be offline
+  }, [customerPhone, setLoyaltyInfo]);
 
   return (
     <div className="min-h-[60vh] py-8 flex flex-col items-center justify-center relative">
@@ -337,6 +369,28 @@ const Step1 = () => {
             </p>
           </div>
 
+          {/* ── شارة الولاء — تظهر تلقائياً عند اكتشاف خصم ── */}
+          {loyaltyStatus && loyaltyStatus.discountRate > 0 && (
+            <div className="flex items-center gap-3 p-4 rounded-xl border"
+              style={{
+                background: loyaltyStatus.discountRate >= 0.5 ? '#fffbeb' : '#f0fdf4',
+                borderColor: loyaltyStatus.discountRate >= 0.5 ? '#fde68a' : '#bbf7d0',
+              }}>
+              <span className="text-3xl flex-shrink-0">{loyaltyStatus.tierIcon}</span>
+              <div className="text-right">
+                <p className="text-sm font-bold" style={{ color: loyaltyStatus.discountRate >= 0.5 ? '#92400e' : '#14532d' }}>
+                  {loyaltyStatus.message}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: loyaltyStatus.discountRate >= 0.5 ? '#b45309' : '#166534' }}>
+                  سيُطبق الخصم تلقائياً على هذا الطلب
+                </p>
+              </div>
+              <span className="mr-auto text-xl font-black" style={{ color: loyaltyStatus.discountRate >= 0.5 ? '#b45309' : '#15803d' }}>
+                -{loyaltyStatus.discountPercent}
+              </span>
+            </div>
+          )}
+
           <div className="pt-4">
             <button
               disabled={!valid}
@@ -377,32 +431,46 @@ const Step2 = () => {
         </p>
       </section>
 
-      <section className="flex flex-row md:grid md:grid-cols-3 gap-6 overflow-x-auto md:overflow-hidden pb-6 md:pb-0 hide-scrollbar snap-x snap-mandatory">
+      <section className="flex flex-row md:grid md:grid-cols-3 gap-5 overflow-x-auto md:overflow-hidden pb-6 md:pb-0 hide-scrollbar snap-x snap-mandatory">
         {designs.map(d => (
           <div
             key={d.id}
             onClick={() => updateField('design', d.id)}
-            className={`group relative flex flex-col flex-shrink-0 w-[280px] md:w-auto snap-center bg-surface-container-lowest/80 backdrop-blur-md rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 cursor-pointer border ${design === d.id ? 'ring-2 ring-[#1c1b1b] border-[#1c1b1b] shadow-2xl' : 'border-surface-container hover:border-[#d0c5af]/30'} active:scale-[0.98]`}
+            className={`group relative flex-shrink-0 w-[300px] md:w-auto snap-center rounded-2xl overflow-hidden cursor-pointer transition-all duration-500 active:scale-[0.97] ${design === d.id ? 'ring-[3px] ring-[#1c1b1b] shadow-2xl shadow-black/30' : 'shadow-md hover:shadow-xl hover:shadow-black/20'}`}
           >
-            
-            <div className="h-[200px] md:h-[220px] overflow-hidden bg-neutral-50 flex items-center justify-center">
-              <img alt={d.title} src={d.img} className="w-full h-full object-contain transition-transform duration-700 group-hover:scale-110" />
-            </div>
-            <div className="p-5 flex flex-col gap-3">
-              <div className="flex justify-between items-center">
-                <h3 className="text-xl font-bold text-on-surface">{d.title}</h3>
-                <span
-                  className={`material-symbols-outlined text-xl ${design === d.id ? 'text-[#1c1b1b]' : 'text-zinc-300'}`}
-                  style={{ fontVariationSettings: design === d.id ? "'FILL' 1" : "" }}
-                >
-                  {design === d.id ? 'check_circle' : 'star'}
+            {/* Full-bleed image — aspect matches 2272×1886 exactly (6:5) */}
+            <div className="aspect-[6/5] relative overflow-hidden bg-[#f5f0e8]">
+              <img
+                alt={d.title}
+                src={d.img}
+                className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+              />
+
+              {/* Bottom gradient + info overlay */}
+              <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/85 via-black/45 to-transparent" />
+
+              {/* Tag badge — top right */}
+              <div className="absolute top-3 right-3">
+                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold tracking-widest uppercase backdrop-blur-sm ${design === d.id ? 'bg-[#1c1b1b] text-[#d0c5af]' : 'bg-white/20 text-white'}`}>
+                  {d.tag}
                 </span>
               </div>
-              <p className="text-on-surface-variant leading-relaxed text-xs">{d.desc}</p>
-              <div className="mt-2 pt-4 border-t border-surface-container flex items-center justify-between">
-                <span className={`text-[10px] tracking-widest font-semibold ${design === d.id ? 'text-[#1c1b1b]' : 'text-secondary'}`}>{d.tag}</span>
-                <div className="w-7 h-7 rounded-full gold-gradient flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <span className="material-symbols-outlined text-white text-xs">arrow_back</span>
+
+              {/* Selection check — top left */}
+              <div className={`absolute top-3 left-3 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 ${design === d.id ? 'bg-[#1c1b1b] scale-100' : 'bg-white/10 scale-75 opacity-0'}`}>
+                <span className="material-symbols-outlined text-white text-sm" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
+              </div>
+
+              {/* Title + desc overlay at bottom */}
+              <div className="absolute bottom-0 inset-x-0 p-4">
+                <div className="flex items-end justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-white leading-tight">{d.title}</h3>
+                    <p className="text-white/70 text-[11px] leading-snug mt-0.5">{d.desc}</p>
+                  </div>
+                  <div className={`w-8 h-8 rounded-full gold-gradient flex items-center justify-center shrink-0 transition-all duration-300 ${design === d.id ? 'opacity-100 scale-100' : 'opacity-0 scale-75 group-hover:opacity-100 group-hover:scale-100'}`}>
+                    <span className="material-symbols-outlined text-white text-sm">check</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -534,25 +602,42 @@ const Step4 = () => {
           <p className="text-secondary max-w-xl text-sm leading-relaxed mt-2">اختر نظام التثبيت الذي يتناسب مع المساحة الإنشائية لمنزلك.</p>
         </section>
 
-        <div className="space-y-4">
-          {types.map(t => (
-            <div
-              key={t.id}
-              onClick={() => updateField('fixation', t.id)}
-              className={`p-5 md:p-6 bg-surface-container-lowest rounded-xl border transition-all duration-500 cursor-pointer flex items-center gap-4 md:gap-6 min-h-[80px] ${fixation === t.id ? 'border-[#1c1b1b] ring-2 ring-[#1c1b1b] shadow-xl' : 'border-surface-container shadow-sm hover:border-[#d0c5af]/30'}`}
-            >
-              <div className={`w-12 h-12 md:w-14 md:h-14 rounded-xl flex items-center justify-center shrink-0 ${fixation === t.id ? 'gold-gradient text-white' : 'bg-surface-container-low text-zinc-400'}`}>
-                <span className="material-symbols-outlined text-2xl md:text-3xl">{t.icon}</span>
+        <div className="grid grid-cols-2 gap-4">
+          {types.map(t => {
+            const cardImg = getImageName(design || 'malaki', size || 'single', t.id, color || 'beige');
+            const isSelected = fixation === t.id;
+            return (
+              <div
+                key={t.id}
+                onClick={() => updateField('fixation', t.id)}
+                className={`group relative rounded-2xl overflow-hidden cursor-pointer transition-all duration-500 active:scale-[0.97] ${isSelected ? 'ring-[3px] ring-[#1c1b1b] shadow-2xl shadow-black/30' : 'shadow-md hover:shadow-xl hover:shadow-black/20'}`}
+              >
+                {/* Full-bleed image — same 6:5 ratio as source images */}
+                <div className="aspect-[6/5] relative overflow-hidden bg-[#f5f0e8]">
+                  <img
+                    alt={t.label}
+                    src={`/image/${cardImg || 'malaki_single_column_beige.png'}`}
+                    onError={e => { e.target.src = '/image/malaki_single_column_beige.png'; }}
+                    className="absolute inset-0 w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+                  />
+
+                  {/* Bottom gradient */}
+                  <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/85 via-black/45 to-transparent" />
+
+                  {/* Selection check — top left */}
+                  <div className={`absolute top-2.5 left-2.5 w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 ${isSelected ? 'bg-[#1c1b1b] scale-100 opacity-100' : 'scale-75 opacity-0'}`}>
+                    <span className="material-symbols-outlined text-white text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>check</span>
+                  </div>
+
+                  {/* Label overlay */}
+                  <div className="absolute bottom-0 inset-x-0 p-3">
+                    <h3 className="text-sm font-bold text-white leading-tight">{t.label}</h3>
+                    <p className="text-white/65 text-[10px] leading-snug mt-0.5 line-clamp-2">{t.desc}</p>
+                  </div>
+                </div>
               </div>
-              <div className="flex-grow">
-                <h3 className="text-base md:text-lg font-bold mb-1">{t.label}</h3>
-                <p className="text-on-surface-variant text-xs leading-relaxed">{t.desc}</p>
-              </div>
-              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${fixation === t.id ? 'border-[#1c1b1b] bg-[#1c1b1b]' : 'border-outline-variant'}`}>
-                {fixation === t.id && <div className="w-2 h-2 bg-white rounded-full" />}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-8 md:mt-12 flex items-center gap-4">
@@ -630,8 +715,15 @@ const Step5 = () => {
 // ─── Step 6: مراجعة الطلب ────────────────────────────────────────────────────
 
 const Step6 = () => {
-  const { design, size, fixation, color, customerName, customerPhone, nextStep, prevStep, saveCancellation } = useStore();
+  const { design, size, fixation, color, customerName, customerPhone, nextStep, prevStep, saveCancellation, loyaltyDiscount, loyaltyTier } = useStore();
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // ── حساب السعر الفعلي حسب الموديل المختار ───────────────────────
+  const priceData = calculatePrice(design, size, fixation, color);
+  const hasDiscount = loyaltyDiscount > 0 && priceData;
+  const discountedMin = hasDiscount ? Math.round(priceData.sellMin * (1 - loyaltyDiscount)) : null;
+  const discountedMax = hasDiscount ? Math.round(priceData.sellMax * (1 - loyaltyDiscount)) : null;
+  const colorLabel = color === 'noir' ? 'أسود' : 'بيج';
 
   const confirmCancel = async () => {
     const snapshot = { customerName, customerPhone, design, size, fixation, color, status: 'ملغى' };
@@ -686,9 +778,10 @@ const Step6 = () => {
             <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
               <div>
                 <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">قماش</span>
-                <p className="text-base md:text-lg font-semibold">بيج</p>
+                <p className="text-base md:text-lg font-semibold">{colorLabel}</p>
               </div>
-              <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm bg-[#F5F5DC]" />
+              <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
+                style={{ backgroundColor: color === 'noir' ? '#1A1A1A' : '#F5F5DC' }} />
             </div>
             {design !== 'sahara' && (
               <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
@@ -699,15 +792,34 @@ const Step6 = () => {
                 <span className="material-symbols-outlined text-zinc-400">architecture</span>
               </div>
             )}
-            {/* السعر داخل نفس الكادر */}
-            <div className="flex justify-between items-center pt-1">
-              <div>
-                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نطاق السعر </span>
-                <p className="text-xl md:text-2xl font-extrabold text-[#735c00]">
-                  من 1,899 إلى 2,599 ر.س
-                </p>
+            {/* السعر المحسوب حسب الموديل مع خصم الولاء */}
+            <div className="flex justify-between items-start pt-1">
+              <div className="flex-1">
+                <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">نطاق السعر</span>
+                {priceData ? (
+                  <>
+                    {hasDiscount && (
+                      <p className="text-sm line-through text-zinc-400 mb-0.5">
+                        {priceData.sellMin.toLocaleString()} — {priceData.sellMax.toLocaleString()} ر.س
+                      </p>
+                    )}
+                    <p className={`text-xl md:text-2xl font-extrabold ${hasDiscount ? 'text-emerald-600' : 'text-[#735c00]'}`}>
+                      {hasDiscount
+                        ? `${discountedMin?.toLocaleString()} — ${discountedMax?.toLocaleString()} ر.س`
+                        : `${priceData.sellMin.toLocaleString()} — ${priceData.sellMax.toLocaleString()} ر.س`
+                      }
+                    </p>
+                    {hasDiscount && (
+                      <span className="inline-block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        خصم ولاء {Math.round(loyaltyDiscount * 100)}% مطبق تلقائياً
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xl md:text-2xl font-extrabold text-[#735c00]">يُحدد بعد الزيارة</p>
+                )}
               </div>
-              <span className="material-symbols-outlined text-[#735c00]/40 text-3xl">payments</span>
+              <span className="material-symbols-outlined text-[#735c00]/40 text-3xl flex-shrink-0">payments</span>
             </div>
           </div>
 
@@ -798,9 +910,20 @@ const Step7 = () => {
   const submitOrder = async () => {
     setIsSubmitting(true);
 
-    const { customerName, customerPhone, design, size, fixation, color, address } = useStore.getState();
+    const { customerName, customerPhone, design, size, fixation, color, address, loyaltyDiscount } = useStore.getState();
     const modelCode = getModelCode(design, size, fixation);
     const safePhone = normalizeSaudiPhone(customerPhone);
+
+    // Calcul du prix estimé (min après remise fidélité si applicable)
+    const priceData = calculatePrice(design, size, fixation, color);
+    const estimatedPrice = priceData
+      ? Math.round(priceData.sellMin * (1 - (loyaltyDiscount || 0)))
+      : null;
+    const latitude = Number(position?.[0]?.toFixed(6));
+    const longitude = Number(position?.[1]?.toFixed(6));
+    const mapUrl = (Number.isFinite(latitude) && Number.isFinite(longitude))
+      ? `https://maps.google.com/?q=${latitude},${longitude}`
+      : '';
 
     const orderData = {
       clientName: customerName,
@@ -810,7 +933,11 @@ const Step7 = () => {
       fixationType: fixation,
       fabricColor: color,
       address: address,
-      status: 'جديد' // State in Arabic as used in the dashboard logic
+      latitude: Number.isFinite(latitude) ? latitude : null,
+      longitude: Number.isFinite(longitude) ? longitude : null,
+      mapUrl: mapUrl,
+      estimatedPrice: estimatedPrice,
+      status: 'جديد'
     };
 
     try {
@@ -865,6 +992,7 @@ const Step7 = () => {
               iconAnchor: [12, 41]
             })} />
             <MapCenterer position={position} />
+            <MapPositionTracker onMove={setPosition} />
           </MapContainer>
 
           {/* مؤشر الموقع */}

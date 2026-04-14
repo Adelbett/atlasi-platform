@@ -15,10 +15,44 @@ import {
   LineChart,
   Line,
   Legend,
+  ReferenceLine,
 } from 'recharts';
 
 const API = 'http://localhost:8080/api';
 const APP_LOCALE = 'ar-SA-u-nu-latn';
+const ADMIN_AUTH_KEY    = 'atlasi_admin_auth';
+const ADMIN_AUTH_TS_KEY = 'atlasi_admin_auth_ts';
+const ADMIN_ID_KEY      = 'atlasi_admin_id';
+const ADMIN_ROLE_KEY    = 'atlasi_admin_role';
+const ADMIN_NAME_KEY    = 'atlasi_admin_name';
+const ADMIN_TITLE_KEY   = 'atlasi_admin_title';
+const ADMIN_EMAIL_KEY   = 'atlasi_admin_email';
+const ADMIN_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+const hasValidAdminSession = () => {
+  if (localStorage.getItem(ADMIN_AUTH_KEY) !== '1') return false;
+  const rawTs = localStorage.getItem(ADMIN_AUTH_TS_KEY);
+  const ts = Number(rawTs || 0);
+  if (!ts) return false;
+  return Date.now() - ts <= ADMIN_SESSION_TTL_MS;
+};
+
+const getStoredUser = () => ({
+  id:       localStorage.getItem(ADMIN_ID_KEY)    || '',
+  role:     localStorage.getItem(ADMIN_ROLE_KEY)  || 'EDITOR',
+  fullName: localStorage.getItem(ADMIN_NAME_KEY)  || '',
+  title:    localStorage.getItem(ADMIN_TITLE_KEY) || '',
+  email:    localStorage.getItem(ADMIN_EMAIL_KEY) || '',
+});
+
+const clearSession = () => {
+  [ADMIN_AUTH_KEY, ADMIN_AUTH_TS_KEY, ADMIN_ID_KEY,
+   ADMIN_ROLE_KEY, ADMIN_NAME_KEY, ADMIN_TITLE_KEY, ADMIN_EMAIL_KEY]
+    .forEach(k => localStorage.removeItem(k));
+};
+
+// Context shared across all dashboard components
+const UserContext = React.createContext(null);
 
 const WESTERN_DIGITS = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9' };
 const toWesternDigits = (value) => String(value ?? '').replace(/[٠-٩]/g, d => WESTERN_DIGITS[d] || d);
@@ -26,6 +60,34 @@ const formatNumber = (value) => toWesternDigits(new Intl.NumberFormat(APP_LOCALE
 const formatCurrency = (value) => `${formatNumber(value)} ر.س`;
 const formatDate = (value, opts) => (value ? toWesternDigits(new Date(value).toLocaleDateString(APP_LOCALE, opts)) : '—');
 const formatDateTime = (value) => (value ? toWesternDigits(new Date(value).toLocaleString(APP_LOCALE)) : '—');
+const toLocalDateStr = (d) => {
+  const yy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yy}-${mm}-${dd}`;
+};
+const fromLocalDateStr = (value) => {
+  const [y, m, d] = String(value || '').split('-').map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d, 12, 0, 0);
+};
+const dateOnly = (value) => String(value || '').split('T')[0];
+const timeOnly = (value) => {
+  if (!value) return '';
+  const asText = String(value);
+  if (/^\d{2}:\d{2}$/.test(asText)) return asText;
+  const tPart = asText.split('T')[1];
+  return tPart ? tPart.slice(0, 5) : '';
+};
+const normalizeAppointment = (a) => ({
+  ...a,
+  appointmentDate: dateOnly(a?.appointmentDate),
+  startTime: a?.startTime || timeOnly(a?.appointmentDate) || '09:00',
+  duration: Number(a?.duration) || 60,
+  agentName: a?.agentName || 'سلطان الغامدي',
+  status: a?.status || 'قادمة',
+  note: a?.note ?? a?.notes ?? '',
+});
 
 const useDebouncedValue = (value, delay = 300) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -92,6 +154,66 @@ const normalizeColorName = (raw) => {
   return raw || 'غير محدد';
 };
 
+// ── Arabic display helpers ─────────────────────────────────────────
+const toArabicDesign = (v) => {
+  const s = String(v || '').toLowerCase();
+  if (s.includes('malaki') || s.includes('ملكي') || s.includes('royal')) return 'ملكي';
+  if (s.includes('neom') || s.includes('نيوم')) return 'نيوم';
+  if (s.includes('sahara') || s.includes('sahra') || s.includes('صحراء')) return 'صحراء';
+  return v || '—';
+};
+const toArabicSize = (v) => {
+  const s = String(v || '').toLowerCase();
+  if (s.includes('double') || s.includes('big') || s.includes('كبير') || s.includes('سيارتين')) return 'سيارتين (كبير)';
+  if (s.includes('single') || s.includes('small') || s.includes('صغير') || s.includes('واحدة')) return 'سيارة واحدة (صغير)';
+  return v || '—';
+};
+const toArabicFixation = (v) => {
+  const s = String(v || '').toLowerCase();
+  if (s.includes('wall') || s.includes('mural') || s.includes('معلق')) return 'معلق (جداري)';
+  if (s.includes('column') || s.includes('colonne') || s.includes('أعمدة')) return 'أعمدة';
+  return v || '—';
+};
+const toArabicColor = (v) => {
+  const s = String(v || '').toLowerCase();
+  if (s.includes('noir') || s.includes('black') || s.includes('أسود')) return 'أسود';
+  if (s.includes('beige') || s.includes('بيج') || s.includes('or') || s.includes('ذهبي')) return 'ذهبي';
+  return v || '—';
+};
+
+// ── Product catalog for analytics ─────────────────────────────────
+const PRODUCT_CATALOG = {
+  'ATL-1S':   { design: 'صحراء', size: 'Single', fixation: '—',      costBeige: 1680, costNoir: 1008, sellMin: 1290, sellMax: 1790 },
+  'ATL-1B':   { design: 'صحراء', size: 'Double', fixation: '—',      costBeige: 2236, costNoir: 1565, sellMin: 1999, sellMax: 2599 },
+  'ATL-2S-H': { design: 'ملكي',  size: 'Single', fixation: 'Wall',   costBeige:  976, costNoir:  683, sellMin: 1499, sellMax: 1899 },
+  'ATL-2B-H': { design: 'ملكي',  size: 'Double', fixation: 'Wall',   costBeige: 1715, costNoir: 1200, sellMin: 1999, sellMax: 2599 },
+  'ATL-2S-C': { design: 'ملكي',  size: 'Single', fixation: 'Column', costBeige: 1354, costNoir:  948, sellMin: 1999, sellMax: 2399 },
+  'ATL-2B-C': { design: 'ملكي',  size: 'Double', fixation: 'Column', costBeige: 2160, costNoir: 1512, sellMin: 2399, sellMax: 2999 },
+  'ATL-3S-H': { design: 'نيوم',  size: 'Single', fixation: 'Wall',   costBeige:  670, costNoir:  469, sellMin:  999, sellMax:  999 },
+  'ATL-3B-H': { design: 'نيوم',  size: 'Double', fixation: 'Wall',   costBeige: 1090, costNoir:  763, sellMin: 1299, sellMax: 1699 },
+  'ATL-3S-C': { design: 'نيوم',  size: 'Single', fixation: 'Column', costBeige: 1140, costNoir:  798, sellMin: 1299, sellMax: 1699 },
+  'ATL-3B-C': { design: 'نيوم',  size: 'Double', fixation: 'Column', costBeige: 2080, costNoir: 1456, sellMin: 1899, sellMax: 2599 },
+};
+
+const getModelCodeFromRequest = (r) => {
+  const rawD = String(r.designType || r.design || '').toLowerCase();
+  const rawS = String(r.sizeInfo || r.size || '').toLowerCase();
+  const rawF = String(r.fixationType || r.fixation || '').toLowerCase();
+  const dk = (rawD.includes('malaki') || rawD.includes('ملكي') || rawD.includes('royal')) ? 'malaki'
+    : (rawD.includes('neom') || rawD.includes('نيوم')) ? 'neom' : 'sahra';
+  const sk = (rawS.includes('double') || rawS.includes('big') || rawS.includes('كبير') || rawS.includes('سيارتين')) ? 'double' : 'single';
+  const fk = (rawF.includes('wall') || rawF.includes('معلق') || rawF.includes('mural')) ? 'wall' : 'column';
+  const map = {
+    'sahra-single': 'ATL-1S', 'sahra-double': 'ATL-1B',
+    'malaki-single-wall': 'ATL-2S-H', 'malaki-double-wall': 'ATL-2B-H',
+    'malaki-single-column': 'ATL-2S-C', 'malaki-double-column': 'ATL-2B-C',
+    'neom-single-wall': 'ATL-3S-H', 'neom-double-wall': 'ATL-3B-H',
+    'neom-single-column': 'ATL-3S-C', 'neom-double-column': 'ATL-3B-C',
+  };
+  const key = dk === 'sahra' ? `${dk}-${sk}` : `${dk}-${sk}-${fk}`;
+  return map[key] || null;
+};
+
 const StatusBadge = ({ status }) => {
   const k = normalizeStatus(status);
   const c = STATUSES[k] || STATUSES.new;
@@ -105,7 +227,7 @@ const StatusBadge = ({ status }) => {
 };
 
 // ── Mock data ─────────────────────────────────────────────────────
-const TODAY = new Date().toISOString().split('T')[0];
+const TODAY = toLocalDateStr(new Date());
 
 const MOCK_REQUESTS = [
   { id: 1, clientName: 'محمد العمراني',   phone: '0501234567', confirmationNumber: 'ATL-2026-0042', designType: 'ملكي',   size: 'كبير', fixation: 'أعمدة',  fabricColor: 'بيج',   status: 'pending',    estimatedPrice: 1899, requestDate: new Date().toISOString() },
@@ -137,8 +259,25 @@ const VISIT_COLORS = {
   'مكتملة':         { color: '#6b7280', bg: '#f9fafb' },
 };
 
-const apiFetch = (path, opts) =>
-  fetch(`${API}${path}`, { headers: { 'Content-Type': 'application/json' }, ...opts }).then(r => r.json());
+const apiFetch = async (path, opts = {}) => {
+  const { headers: customHeaders = {}, ...rest } = opts;
+  const r = await fetch(`${API}${path}`, {
+    ...rest,
+    headers: { 'Content-Type': 'application/json', ...customHeaders },
+  });
+  const raw = await r.text();
+  let data = null;
+  try {
+    data = raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    data = raw;
+  }
+  if (!r.ok) {
+    const msg = typeof data === 'string' && data ? data : data?.message || `HTTP ${r.status}`;
+    throw new Error(msg);
+  }
+  return data;
+};
 
 // ── Sidebar nav ───────────────────────────────────────────────────
 const NAV = [
@@ -147,9 +286,10 @@ const NAV = [
   { path: '/admin/pipeline',  icon: 'account_tree',       label: 'سير العمل' },
   { path: '/admin/calendar',  icon: 'calendar_today',     label: 'الأجندة' },
   { path: '/admin/clients',   icon: 'groups',             label: 'العملاء' },
-  { path: '/admin/loyalty',   icon: 'workspace_premium',  label: 'برنامج الولاء' },
-  { path: '/admin/reports',   icon: 'bar_chart',          label: 'التقارير' },
-  { path: '/admin/settings',  icon: 'settings',           label: 'الإعدادات' },
+  { path: '/admin/loyalty',    icon: 'workspace_premium',  label: 'برنامج الولاء' },
+  { path: '/admin/catalogue',  icon: 'category',           label: 'الكتالوج' },
+  { path: '/admin/reports',    icon: 'bar_chart',          label: 'التقارير' },
+  { path: '/admin/settings',   icon: 'settings',           label: 'الإعدادات' },
 ];
 
 const Sidebar = ({ onLogout }) => {
@@ -189,7 +329,22 @@ const Sidebar = ({ onLogout }) => {
 
 const AdminLayout = ({ children, onLogout }) => {
   const { pathname } = useLocation();
+  const currentUser  = React.useContext(UserContext);
   const navItem = NAV.find(n => pathname === n.path || (n.path !== '/admin' && pathname.startsWith(n.path)));
+  const [dropOpen, setDropOpen] = React.useState(false);
+  const dropRef = React.useRef(null);
+
+  // Close dropdown on outside click
+  React.useEffect(() => {
+    const handler = (e) => { if (dropRef.current && !dropRef.current.contains(e.target)) setDropOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const initials = (currentUser?.fullName || 'A')
+    .split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  const isMainAdmin = currentUser?.role === 'MAIN_ADMIN';
+
   return (
     <div className="flex h-screen bg-gray-50" dir="rtl" style={{ fontFamily: "'Cairo', sans-serif" }}>
       <Sidebar onLogout={onLogout} />
@@ -206,7 +361,43 @@ const AdminLayout = ({ children, onLogout }) => {
               <span className="material-symbols-outlined text-[20px]">notifications</span>
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white" />
             </button>
-            <div className="w-7 h-7 rounded-full bg-gray-900 text-white flex items-center justify-center text-xs font-bold cursor-pointer">A</div>
+
+            {/* User avatar + dropdown */}
+            <div className="relative" ref={dropRef}>
+              <button
+                onClick={() => setDropOpen(o => !o)}
+                className="w-8 h-8 rounded-full bg-gray-900 text-white flex items-center justify-center text-xs font-bold cursor-pointer hover:bg-gray-700 transition-colors select-none"
+                title={currentUser?.fullName || ''}
+              >
+                {initials}
+              </button>
+
+              {dropOpen && (
+                <div className="absolute left-0 top-10 w-56 bg-white border border-gray-100 rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 bg-gray-50">
+                    <p className="text-sm font-semibold text-gray-900 truncate">
+                      {currentUser?.fullName || '—'}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">
+                      {currentUser?.title || (isMainAdmin ? 'مشرف رئيسي' : 'مشرف')}
+                    </p>
+                    <span className={`inline-block mt-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold ${isMainAdmin ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
+                      {isMainAdmin ? 'مشرف رئيسي' : 'مشرف'}
+                    </span>
+                  </div>
+                  <div className="px-4 py-2 text-xs text-gray-400 truncate">{currentUser?.email}</div>
+                  <div className="border-t border-gray-100">
+                    <button
+                      onClick={() => { setDropOpen(false); onLogout(); }}
+                      className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">logout</span>
+                      تسجيل الخروج
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
@@ -215,7 +406,7 @@ const AdminLayout = ({ children, onLogout }) => {
   );
 };
 
-// ── MODULE 1: لوحة التحكم ────────────────────────────────────────
+// ── MODULE 1: لوحة التحليلات ────────────────────────────────────────
 const Overview = () => {
   const [requests, setRequests] = useState([]);
   const [appointments, setAppointments] = useState([]);
@@ -229,12 +420,12 @@ const Overview = () => {
       apiFetch('/admin/appointments').catch(() => MOCK_APPOINTMENTS),
     ]).then(([reqData, apptData]) => {
       setRequests(Array.isArray(reqData) ? reqData : MOCK_REQUESTS);
-      setAppointments(Array.isArray(apptData) ? apptData : MOCK_APPOINTMENTS);
+      setAppointments(Array.isArray(apptData) ? apptData.map(normalizeAppointment) : MOCK_APPOINTMENTS.map(normalizeAppointment));
       setLastUpdated(new Date());
       setLoading(false);
     }).catch(() => {
       setRequests(MOCK_REQUESTS);
-      setAppointments(MOCK_APPOINTMENTS);
+      setAppointments(MOCK_APPOINTMENTS.map(normalizeAppointment));
       setLastUpdated(new Date());
       setLoading(false);
     });
@@ -246,25 +437,87 @@ const Overview = () => {
     return () => clearInterval(interval);
   }, [loadAnalytics]);
 
-  const todayStr = formatDate(new Date());
-  const todayRequests  = requests.filter(r => formatDate(r.requestDate) === todayStr);
-  const pendingCount   = requests.filter(r => ['new', 'pending'].includes(normalizeStatus(r.status))).length;
-  const clientSet      = new Set(requests.map(r => r.phone || r.clientName));
-  const monthRevenue   = requests.filter(r => normalizeStatus(r.status) === 'installed')
-    .reduce((s, r) => s + (Number(r.estimatedPrice) || 0), 0);
-  const bookedAppointments = appointments.length;
-  const completedAppointments = appointments.filter(a => a.status === 'مكتملة').length;
+  // ── Data Prep: exclude cancelled ─────────────────────────────────
+  const activeRequests = useMemo(() =>
+    requests.filter(r => normalizeStatus(r.status) !== 'cancelled'), [requests]);
 
-  const kpis = [
-    { label: 'إجمالي الطلبات', value: formatNumber(requests.length), icon: 'shopping_bag', alert: false },
-    { label: 'طلبات اليوم', value: formatNumber(todayRequests.length), icon: 'today', alert: false },
-    { label: 'الطلبات المعلقة', value: formatNumber(pendingCount), icon: 'pending_actions', alert: pendingCount > 5 },
-    { label: 'إجمالي العملاء', value: formatNumber(clientSet.size), icon: 'groups', alert: false },
-    { label: 'إيرادات المبيعات', value: formatCurrency(monthRevenue), icon: 'payments', alert: false },
-    { label: 'المواعيد المحجوزة', value: formatNumber(bookedAppointments), icon: 'event_available', alert: false },
-    { label: 'الزيارات المكتملة', value: formatNumber(completedAppointments), icon: 'task_alt', alert: false },
-  ];
+  // ── KPI 1: Revenus Estimés ───────────────────────────────────────
+  const estimatedRevenue = useMemo(() =>
+    activeRequests.reduce((s, r) => s + (Number(r.estimatedPrice) || 0), 0), [activeRequests]);
 
+  // Enrich each request once: resolve model code, product, color flag.
+  // Downstream KPIs read from this instead of re-running getModelCodeFromRequest per computation.
+  const enrichedRequests = useMemo(() =>
+    activeRequests.map(r => {
+      const modelCode = getModelCodeFromRequest(r);
+      const product = PRODUCT_CATALOG[modelCode] || null;
+      const isNoir = normalizeColorName(r.fabricColor || r.color || '') === 'Black';
+      return { ...r, modelCode, product, isNoir };
+    }), [activeRequests]);
+
+  const estimatedProfit = useMemo(() =>
+    enrichedRequests.reduce((s, r) => {
+      if (!r.product || !r.estimatedPrice) return s;
+      const cost = r.isNoir ? r.product.costNoir : r.product.costBeige;
+      return s + (Number(r.estimatedPrice) - cost);
+    }, 0), [enrichedRequests]);
+
+  // clientOrderCounts: shared between loyaltyForce and loyaltyFunnelData.
+  const clientOrderCounts = useMemo(() => {
+    const map = {};
+    activeRequests.forEach(r => {
+      const k = r.phone || r.clientName || `id-${r.id}`;
+      map[k] = (map[k] || 0) + 1;
+    });
+    return Object.values(map);
+  }, [activeRequests]);
+
+  const loyaltyForce = useMemo(() => {
+    if (!clientOrderCounts.length) return 0;
+    return Math.round((clientOrderCounts.filter(n => n >= 2).length / clientOrderCounts.length) * 100);
+  }, [clientOrderCounts]);
+
+  const lowMarginModels = useMemo(() =>
+    Object.entries(PRODUCT_CATALOG).filter(([, p]) =>
+      ((p.sellMin - p.costBeige) / p.sellMin) * 100 < 10
+    ), []);
+
+  const modelMarginData = useMemo(() =>
+    Object.entries(PRODUCT_CATALOG).map(([code, p]) => {
+      const m = Math.round(((p.sellMin - p.costBeige) / p.sellMin) * 100);
+      return { code, margin: m, fill: m < 10 ? '#dc2626' : m < 25 ? '#d97706' : '#059669' };
+    }).sort((a, b) => b.margin - a.margin), []);
+
+  const profitByDesign = useMemo(() => {
+    const acc = {};
+    enrichedRequests.forEach(r => {
+      if (!r.product || !r.estimatedPrice) return;
+      const profit = Number(r.estimatedPrice) - (r.isNoir ? r.product.costNoir : r.product.costBeige);
+      acc[r.product.design] = (acc[r.product.design] || 0) + profit;
+    });
+    return Object.entries(acc).filter(([, v]) => v !== 0).map(([name, value]) => ({ name, value: Math.round(value) }));
+  }, [enrichedRequests]);
+
+  // Single pass over activeRequests for all four preference breakdowns.
+  const { colorStats, designStats, fixationStats, sizeStats } = useMemo(() => {
+    const colors = {}, designs = {}, fixations = {}, sizes = {};
+    activeRequests.forEach(r => {
+      const ck = toArabicColor(r.fabricColor || r.color || '');       colors[ck]    = (colors[ck]    || 0) + 1;
+      const dk = toArabicDesign(r.designType || r.design || '');      designs[dk]   = (designs[dk]   || 0) + 1;
+      const fk = toArabicFixation(r.fixationType || r.fixation || ''); fixations[fk] = (fixations[fk] || 0) + 1;
+      const sk = toArabicSize(r.sizeInfo || r.size || '');            sizes[sk]     = (sizes[sk]     || 0) + 1;
+    });
+    const toArr = obj => Object.entries(obj).map(([name, value]) => ({ name, value }));
+    return { colorStats: toArr(colors), designStats: toArr(designs), fixationStats: toArr(fixations), sizeStats: toArr(sizes) };
+  }, [activeRequests]);
+
+  const loyaltyFunnelData = useMemo(() => [
+    { name: '🆕 جديد — 1 طلب',        count: clientOrderCounts.filter(n => n === 1).length,            color: '#6b7280' },
+    { name: '🥈 فضي — 2 إلى 4 طلبات', count: clientOrderCounts.filter(n => n >= 2 && n <= 4).length,   color: '#64748b' },
+    { name: '💎 بلاتيني — 5+ طلبات',  count: clientOrderCounts.filter(n => n >= 5).length,              color: '#B89B5E' },
+  ], [clientOrderCounts]);
+
+  // statusData intentionally includes cancelled orders to show full status distribution.
   const statusData = useMemo(() => Object.entries(
     requests.reduce((acc, r) => {
       const k = normalizeStatus(r.status);
@@ -274,67 +527,31 @@ const Overview = () => {
     }, {})
   ).map(([name, value]) => ({ name, value })), [requests]);
 
-  const appointmentTypeData = useMemo(() => Object.entries(
-    appointments.reduce((acc, a) => {
-      const key = a.appointmentType || 'غير محدد';
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {})
-  ).map(([name, count]) => ({ name, count })), [appointments]);
+  const topModelsData = useMemo(() => {
+    const ordersByCode = {};
+    enrichedRequests.forEach(r => {
+      if (r.modelCode) ordersByCode[r.modelCode] = (ordersByCode[r.modelCode] || 0) + 1;
+    });
+    return Object.entries(PRODUCT_CATALOG).map(([code, p]) => {
+      const marginPct = Math.round(((p.sellMin - p.costBeige) / p.sellMin) * 100);
+      const orders = ordersByCode[code] || 0;
+      const status = marginPct < 0 ? 'خسارة' : marginPct < 10 ? 'هامش منخفض' : 'جيد';
+      return { code, design: p.design, size: p.size, fixation: p.fixation, orders, marginPct, status, lowMargin: marginPct < 10 };
+    }).sort((a, b) => b.orders - a.orders);
+  }, [enrichedRequests]);
 
-  const colorStats = useMemo(() => Object.entries(
-    requests.reduce((acc, r) => {
-      const key = normalizeColorName(r.fabricColor);
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {})
-  ).map(([color, count]) => ({ color, count })), [requests]);
+  const PIE_COLORS = ['#111827', '#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#B89B5E'];
+  const PREF_COLORS = ['#111827', '#2563eb', '#059669', '#d97706'];
 
-  const designStats = useMemo(() => Object.entries(
-    requests.reduce((acc, r) => {
-      const key = normalizeDesignType(r.designType);
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {})
-  ).map(([label, count]) => ({ label, count })), [requests]);
-
-  const sizeStats = useMemo(() => Object.entries(
-    requests.reduce((acc, r) => {
-      const key = normalizeSizeInfo(r.sizeInfo || r.size);
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {})
-  ).map(([label, count]) => ({ label, count })), [requests]);
-
-  const fixationStats = useMemo(() => Object.entries(
-    requests.reduce((acc, r) => {
-      const key = normalizeFixationType(r.fixationType || r.fixation);
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {})
-  ).map(([label, count]) => ({ label, count })), [requests]);
-
-  const salesLineData = useMemo(() => {
-    const days = 7;
-    const result = [];
-    for (let i = days - 1; i >= 0; i -= 1) {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().split('T')[0];
-      const sales = requests
-        .filter(r => (r.requestDate || '').startsWith(key) && normalizeStatus(r.status) === 'installed')
-        .reduce((sum, r) => sum + (Number(r.estimatedPrice) || 0), 0);
-      const appts = appointments.filter(a => (a.appointmentDate || '').startsWith(key)).length;
-      result.push({ day: formatDate(d), sales, appointments: appts });
-    }
-    return result;
-  }, [requests, appointments]);
-
-  const PIE_COLORS = ['#111827', '#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2', '#6b7280'];
+  const kpis = [
+    { label: 'الإيرادات التقديرية', value: formatCurrency(estimatedRevenue), icon: 'payments', alert: false, iconBg: '#ecfdf5', iconColor: '#059669', sub: `${formatNumber(activeRequests.length)} طلب نشط` },
+    { label: 'الأرباح التقديرية', value: formatCurrency(estimatedProfit), icon: 'trending_up', alert: estimatedProfit < 0, iconBg: estimatedProfit >= 0 ? '#eff6ff' : '#fef2f2', iconColor: estimatedProfit >= 0 ? '#2563eb' : '#dc2626', sub: estimatedProfit < 0 ? '⚠️ خسارة إجمالية' : 'بعد خصم التكاليف' },
+    { label: 'قوة الولاء', value: `${loyaltyForce}%`, icon: 'workspace_premium', alert: false, iconBg: '#fefce8', iconColor: '#B89B5E', sub: 'عملاء فضي + بلاتيني' },
+  ];
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-gray-900">لوحة التحليلات</h2>
@@ -346,196 +563,241 @@ const Overview = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7 gap-3">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {kpis.map((k, i) => (
-          <div key={i} className={`bg-white border rounded-xl p-4 shadow-sm relative ${k.alert ? 'border-red-200' : 'border-gray-100'}`}>
-            {k.alert && (
-              <span className="absolute top-2 left-2 w-4 h-4 bg-red-500 rounded-full flex items-center justify-center text-white text-[8px] font-bold">!</span>
-            )}
-            <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center border border-gray-100 mb-3">
-              <span className="material-symbols-outlined text-gray-500 text-[16px]">{k.icon}</span>
+          <div key={i} className={`bg-white border rounded-xl p-5 shadow-sm ${k.alert ? 'border-red-300 bg-red-50/30' : 'border-gray-100'}`}>
+            <div className="flex items-start justify-between mb-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: k.iconBg }}>
+                <span className="material-symbols-outlined text-[20px]" style={{ color: k.iconColor, fontVariationSettings: "'FILL' 1" }}>{k.icon}</span>
+              </div>
+              {k.alert && <span className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0">!</span>}
             </div>
-            <p className="text-xl font-bold text-gray-900 leading-none">{loading ? '—' : k.value}</p>
-            <p className="text-[10px] text-gray-400 mt-1 leading-tight">{k.label}</p>
+            <p className="text-2xl font-bold text-gray-900 leading-none">{loading ? '—' : k.value}</p>
+            <p className="text-xs text-gray-600 mt-1.5 font-semibold leading-tight">{k.label}</p>
+            {k.sub && <p className="text-[10px] text-gray-400 mt-0.5 truncate">{k.sub}</p>}
           </div>
         ))}
       </div>
 
+      {/* Row 1: Model Margins + Profit by Design */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Histogram - حجم المواعيد حسب النوع</h3>
-          <div className="h-72">
+        {/* Bar Chart – Model Margins */}
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-gray-900">أداء الموديلات — هامش الربح %</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">أحمر: هامش أقل من 10% · برتقالي: أقل من 25%</p>
+          </div>
+          <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={appointmentTypeData} margin={{ top: 12, right: 16, left: 0, bottom: 30 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="name" interval={0} angle={-20} textAnchor="end" tick={{ fill: '#374151', fontSize: 10 }} />
-                <YAxis tick={{ fill: '#374151', fontSize: 11 }} allowDecimals={false} />
-                <Tooltip formatter={(val) => [formatNumber(val), 'عدد المواعيد']} />
-                <Bar dataKey="count" fill="#111827" radius={[8, 8, 0, 0]} />
+              <BarChart data={modelMarginData} margin={{ top: 8, right: 16, left: -20, bottom: 44 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                <XAxis dataKey="code" interval={0} angle={-40} textAnchor="end" tick={{ fill: '#374151', fontSize: 9 }} />
+                <YAxis tick={{ fill: '#374151', fontSize: 10 }} tickFormatter={v => `${v}%`} />
+                <Tooltip formatter={(val) => [`${val}%`, 'هامش الربح']} />
+                <ReferenceLine y={10} stroke="#d97706" strokeDasharray="5 3" label={{ value: '10%', position: 'insideTopRight', fill: '#d97706', fontSize: 9 }} />
+                <ReferenceLine y={0} stroke="#dc2626" strokeDasharray="3 3" />
+                <Bar dataKey="margin" radius={[4, 4, 0, 0]}>
+                  {modelMarginData.map((entry, idx) => (
+                    <Cell key={idx} fill={entry.fill} />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Pie - توزيع الطلبات حسب الحالة</h3>
-          <div className="h-72">
+        {/* Pie Chart – Profit by Design */}
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-gray-900">توزيع الأرباح حسب التصميم</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">أي تصميم يولّد أكبر ربح للشركة</p>
+          </div>
+          {profitByDesign.length > 0 ? (
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={profitByDesign} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100} paddingAngle={3}>
+                    {profitByDesign.map((_, idx) => (
+                      <Cell key={idx} fill={PREF_COLORS[idx % PREF_COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(val) => [formatCurrency(val), 'الربح التقديري']} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-64 flex flex-col items-center justify-center text-gray-300">
+              <span className="material-symbols-outlined text-4xl mb-2">pie_chart</span>
+              <p className="text-sm">لا توجد بيانات كافية لحساب الأرباح</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Row 2: Customer Preferences — 4 Pies */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
+        <div className="mb-4">
+          <h3 className="text-sm font-bold text-gray-900">تحليل خيارات العملاء</h3>
+          <p className="text-[11px] text-gray-400 mt-0.5">بيانات مستخرجة من معالج الطلب (Wizard)</p>
+        </div>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          {[
+            { title: 'اللون', data: colorStats, colors: ['#1c1c1c','#B89B5E','#d4af37','#6b7280'] },
+            { title: 'التصميم', data: designStats, colors: PREF_COLORS },
+            { title: 'التثبيت', data: fixationStats, colors: ['#7c3aed','#0891b2'] },
+            { title: 'الحجم', data: sizeStats, colors: ['#ea580c','#16a34a'] },
+          ].map(({ title, data, colors }) => (
+            <div key={title}>
+              <h4 className="text-xs font-bold text-gray-600 text-center mb-2">{title}</h4>
+              <div className="h-44">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={data} dataKey="value" nameKey="name" outerRadius={58} innerRadius={28}
+                      label={({ percent }) => `${Math.round(percent * 100)}%`} labelLine={false}
+                      fontSize={9}>
+                      {data.map((_, idx) => <Cell key={idx} fill={colors[idx % colors.length]} />)}
+                    </Pie>
+                    <Tooltip formatter={(val) => [formatNumber(val), 'طلبات']} />
+                    <Legend iconSize={8} wrapperStyle={{ fontSize: 10 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Row 3: Loyalty Funnel + Status Distribution */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        {/* Loyalty Funnel */}
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-gray-900">قمع تحويل الولاء</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">توزيع العملاء على مستويات برنامج الولاء</p>
+          </div>
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={loyaltyFunnelData} layout="vertical" margin={{ right: 32, left: 12, top: 4, bottom: 4 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false} />
+                <YAxis type="category" dataKey="name" width={170} tick={{ fontSize: 10 }} />
+                <Tooltip formatter={(val) => [formatNumber(val), 'عميل']} />
+                <Bar dataKey="count" radius={[0, 6, 6, 0]} label={{ position: 'right', fontSize: 11, fontWeight: 700 }}>
+                  {loyaltyFunnelData.map((entry, idx) => (
+                    <Cell key={idx} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Status Distribution */}
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
+          <div className="mb-4">
+            <h3 className="text-sm font-bold text-gray-900">توزيع الطلبات حسب الحالة</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">جميع الطلبات بما فيها الملغاة</p>
+          </div>
+          <div className="h-52">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={110} paddingAngle={2}>
-                  {statusData.map((entry, idx) => (
-                    <Cell key={entry.name} fill={PIE_COLORS[idx % PIE_COLORS.length]} />
-                  ))}
+                <Pie data={statusData} dataKey="value" nameKey="name" innerRadius={55} outerRadius={90} paddingAngle={2}>
+                  {statusData.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
                 </Pie>
-                <Tooltip formatter={(val) => [formatNumber(val), 'عدد الطلبات']} />
-                <Legend />
+                <Tooltip formatter={(val) => [formatNumber(val), 'طلبات']} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
         </div>
+      </div>
 
-        <div className="xl:col-span-2 bg-white border border-gray-100 rounded-xl shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">Line - اتجاه المبيعات والمواعيد (آخر 7 أيام)</h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={salesLineData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="day" tick={{ fill: '#374151', fontSize: 11 }} />
-                <YAxis yAxisId="left" tick={{ fill: '#374151', fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fill: '#374151', fontSize: 11 }} allowDecimals={false} />
-                <Tooltip
-                  formatter={(val, key) => key === 'sales' ? [formatCurrency(val), 'Sales'] : [formatNumber(val), 'Appointments']}
-                  labelFormatter={() => ''}
-                  contentStyle={{ backgroundColor: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px' }}
-                />
-                <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                <Line yAxisId="left" type="monotone" dataKey="sales" stroke="#111827" strokeWidth={3} dot={{ r: 3 }} name="Sales (المبيعات)" />
-                <Line yAxisId="right" type="monotone" dataKey="appointments" stroke="#2563eb" strokeWidth={3} dot={{ r: 3 }} name="Appointments (المواعيد)" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex gap-8 justify-center mt-2 text-xs">
-            <div className="flex items-center gap-2"><div className="w-3 h-0.5 bg-gray-900"></div><span>Ventes</span></div>
-            <div className="flex items-center gap-2"><div className="w-3 h-0.5 bg-blue-500"></div><span>Rendez-vous</span></div>
-          </div>
+      {/* Geographic Summary */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="material-symbols-outlined text-gray-400 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+          <h3 className="text-sm font-bold text-gray-900">خريطة التوزيع الجغرافي للطلبات</h3>
         </div>
+        {requests.filter(r => r.latitude && r.longitude).length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            {requests.filter(r => r.latitude && r.longitude).slice(0, 9).map(r => (
+              <div key={r.id} className="flex items-center gap-2.5 p-3 bg-gray-50 rounded-lg border border-gray-100">
+                <span className="material-symbols-outlined text-red-500 text-[16px] flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-gray-800 truncate">{r.clientName}</p>
+                  <p className="text-[10px] text-gray-400">{r.latitude?.toFixed(4)}, {r.longitude?.toFixed(4)}</p>
+                </div>
+                <a href={`https://maps.google.com/?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer"
+                  className="text-blue-500 hover:text-blue-700 flex-shrink-0">
+                  <span className="material-symbols-outlined text-[14px]">open_in_new</span>
+                </a>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-10 text-gray-300">
+            <span className="material-symbols-outlined text-5xl block mb-3">map</span>
+            <p className="text-sm font-medium text-gray-400">لا توجد إحداثيات GPS مسجلة بعد</p>
+            <p className="text-[11px] mt-1">ستظهر نقاط الحرارة الجغرافية بعد تسجيل مواقع العملاء في الطلبات</p>
+          </div>
+        )}
+      </div>
 
-        <div className="xl:col-span-2 bg-white border border-gray-100 rounded-xl shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">إحصائيات الألوان (Colors Breakdown)</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full text-right">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr className="text-[11px] font-semibold text-gray-600">
-                  <th className="px-4 py-2">اللون</th>
-                  <th className="px-4 py-2">عدد الطلبات</th>
-                  <th className="px-4 py-2">النسبة</th>
+      {/* Top Models Table */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
+          <h3 className="text-sm font-bold text-gray-900">جدول أداء المنتجات</h3>
+          <p className="text-[11px] text-gray-400">مرتب حسب عدد الطلبات · الصفوف الحمراء = هامش أقل من 10%</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-right">
+            <thead className="bg-gray-50 border-b border-gray-100">
+              <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+                <th className="px-4 py-3">الكود</th>
+                <th className="px-4 py-3">التصميم</th>
+                <th className="px-4 py-3">الحجم</th>
+                <th className="px-4 py-3">التثبيت</th>
+                <th className="px-4 py-3">عدد الطلبات</th>
+                <th className="px-4 py-3">هامش الربح %</th>
+                <th className="px-4 py-3">الحالة</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {topModelsData.map((row, i) => (
+                <tr key={i} className={`transition-colors ${row.lowMargin ? 'bg-red-50/60 hover:bg-red-50' : 'hover:bg-gray-50'}`}>
+                  <td className="px-4 py-3 font-mono text-xs font-bold text-blue-600">{row.code}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-800">{row.design}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">{row.size === 'Single' ? 'سيارة واحدة' : 'سيارتين'}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">
+                    {row.fixation === 'Wall' ? 'معلق' : row.fixation === 'Column' ? 'أعمدة' : '—'}
+                  </td>
+                  <td className="px-4 py-3">
+                    {row.orders > 0
+                      ? <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{formatNumber(row.orders)}</span>
+                      : <span className="text-xs text-gray-300">—</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                      row.marginPct < 0 ? 'bg-red-100 text-red-700'
+                      : row.marginPct < 10 ? 'bg-amber-100 text-amber-700'
+                      : 'bg-green-100 text-green-700'
+                    }`}>
+                      {row.marginPct}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                      row.status === 'خسارة' ? 'bg-red-100 text-red-700'
+                      : row.status === 'هامش منخفض' ? 'bg-amber-100 text-amber-700'
+                      : 'bg-green-100 text-green-700'
+                    }`}>{row.status}</span>
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {colorStats.map((row, idx) => {
-                  const pct = requests.length ? Math.round((row.count / requests.length) * 100) : 0;
-                  return (
-                    <tr key={row.color} className={idx % 2 ? 'bg-gray-50/60' : ''}>
-                      <td className="px-4 py-2 text-sm font-medium text-gray-800">{row.color}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{formatNumber(row.count)}</td>
-                      <td className="px-4 py-2 text-sm text-gray-600">{formatNumber(pct)}%</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {!colorStats.length && <p className="text-sm text-gray-300 text-center py-6">لا توجد بيانات ألوان</p>}
-          </div>
-        </div>
-
-        <div className="xl:col-span-2 bg-white border border-gray-100 rounded-xl shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">إحصائيات بيانات العميل من الـ Wizard</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-2">Design Type</p>
-              <div className="space-y-2">
-                {designStats.map((row) => {
-                  const pct = requests.length ? Math.round((row.count / requests.length) * 100) : 0;
-                  return (
-                    <div key={row.label}>
-                      <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span className="text-gray-700">{row.label}</span>
-                        <span className="text-gray-500">{formatNumber(row.count)} · {formatNumber(pct)}%</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-gray-900" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-2">Size</p>
-              <div className="space-y-2">
-                {sizeStats.map((row) => {
-                  const pct = requests.length ? Math.round((row.count / requests.length) * 100) : 0;
-                  return (
-                    <div key={row.label}>
-                      <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span className="text-gray-700">{row.label}</span>
-                        <span className="text-gray-500">{formatNumber(row.count)} · {formatNumber(pct)}%</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-600" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-gray-500 mb-2">Fixation</p>
-              <div className="space-y-2">
-                {fixationStats.map((row) => {
-                  const pct = requests.length ? Math.round((row.count / requests.length) * 100) : 0;
-                  return (
-                    <div key={row.label}>
-                      <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span className="text-gray-700">{row.label}</span>
-                        <span className="text-gray-500">{formatNumber(row.count)} · {formatNumber(pct)}%</span>
-                      </div>
-                      <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-600" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="xl:col-span-2 bg-white border border-gray-100 rounded-xl shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">ملخص العمليات</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="rounded-lg bg-gray-900 text-white p-4">
-              <p className="text-xs text-gray-300">الطلبات المؤكدة</p>
-              <p className="text-2xl font-bold mt-1">{formatNumber(requests.filter(r => normalizeStatus(r.status) === 'confirmed').length)}</p>
-            </div>
-            <div className="rounded-lg bg-blue-600 text-white p-4">
-              <p className="text-xs text-blue-100">زيارات اليوم</p>
-              <p className="text-2xl font-bold mt-1">{formatNumber(appointments.filter(a => a.appointmentDate === new Date().toISOString().split('T')[0]).length)}</p>
-            </div>
-            <div className="rounded-lg bg-emerald-600 text-white p-4">
-              <p className="text-xs text-emerald-100">معدل الإنجاز</p>
-              <p className="text-2xl font-bold mt-1">
-                {formatNumber(bookedAppointments ? Math.round((completedAppointments / bookedAppointments) * 100) : 0)}%
-              </p>
-            </div>
-          </div>
-          {pendingCount > 0 && (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-              يوجد {formatNumber(pendingCount)} طلبات قيد الانتظار وتحتاج متابعة.
-            </div>
-          )}
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
@@ -577,7 +839,9 @@ const Requests = () => {
     navigate('/admin/calendar');
   };
 
-  const filtered = requests.filter(r => {
+  const visibleRequests = requests.filter(r => normalizeStatus(r.status) !== 'confirmed');
+
+  const filtered = visibleRequests.filter(r => {
     const label = STATUSES[normalizeStatus(r.status)]?.label || '';
     const ok1 = filter === 'الكل' || label === filter;
     const ok2 = !search || r.clientName?.includes(search) || r.phone?.includes(search) || r.confirmationNumber?.includes(search);
@@ -598,7 +862,7 @@ const Requests = () => {
             className="w-full bg-white border border-gray-200 rounded-lg pr-9 pl-4 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
         </div>
         <div className="flex gap-1.5 flex-wrap">
-          {['الكل', ...Object.values(STATUSES).slice(0, 5).map(s => s.label)].map(f => (
+          {['الكل', ...Object.values(STATUSES).slice(0, 5).filter(s => s.label !== 'مؤكد').map(s => s.label)].map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap border ${filter === f ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'}`}>
               {f}
@@ -800,16 +1064,24 @@ const Calendar = () => {
   const debouncedClientSearch           = useDebouncedValue(clientSearch, 350);
 
   const DAYS_AR = ['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
-  const AGENTS  = ['سلطان الغامدي'];
+  const VISIT_TYPES = ['زيارة ميدانية', 'تركيب'];
+
+  // Dynamic agents: derive from loaded appointments + known defaults
+  const AGENTS = useMemo(() => {
+    const names = new Set(['سلطان الغامدي', 'فهد العتيبي']);
+    appointments.forEach(a => { if (a.agentName) names.add(a.agentName); });
+    return Array.from(names);
+  }, [appointments]);
   const GRID_START = 360; // 06:00 in minutes
   const PX_PER_MIN = 1.2; // pixels per minute
+  const localToday = toLocalDateStr(new Date());
 
   useEffect(() => {
     Promise.all([
       apiFetch('/admin/appointments').catch(() => MOCK_APPOINTMENTS),
       apiFetch('/admin/requests').catch(() => MOCK_REQUESTS),
     ]).then(([apptData, reqData]) => {
-      setAppointments(Array.isArray(apptData) ? apptData : MOCK_APPOINTMENTS);
+      setAppointments(Array.isArray(apptData) ? apptData.map(normalizeAppointment) : MOCK_APPOINTMENTS.map(normalizeAppointment));
       setRequests(Array.isArray(reqData) ? reqData : MOCK_REQUESTS);
     });
   }, []);
@@ -840,10 +1112,15 @@ const Calendar = () => {
       const name = r.clientName || r.customerName || '';
       const phone = r.phone || r.clientPhone || r.customerPhone || '';
       const key = phone || name;
-      if (!map.has(key)) {
+      const existing = map.get(key);
+      const incomingDate = new Date(r.requestDate || 0).getTime();
+      const existingDate = existing ? new Date(existing.requestDate || 0).getTime() : -1;
+      if (!existing || incomingDate >= existingDate) {
         map.set(key, {
           name,
           phone,
+          requestId: r.id || null,
+          requestDate: r.requestDate || null,
           confirmationNumber: r.confirmationNumber || '',
           latestType: r.designType || r.design || '',
         });
@@ -860,35 +1137,122 @@ const Calendar = () => {
       .slice(0, 30);
   }, [clientDirectory, debouncedClientSearch]);
 
-  const dateStr = currentDate.toISOString().split('T')[0];
-  const dayAppts = appointments.filter(a => a.appointmentDate === dateStr || !a.appointmentDate);
+  const dateStr = toLocalDateStr(currentDate);
+  const dayAppts = appointments.filter(a => dateOnly(a.appointmentDate) === dateStr || !a.appointmentDate);
+
+  const timeSlots = useMemo(() => {
+    const now = new Date();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const isTodaySelected = form.date === localToday;
+
+    return HOURS
+      .filter(({ totalMins }) => !isTodaySelected || totalMins > nowMins)
+      .map(({ label }) => {
+        const reserved = appointments.find((a) =>
+          dateOnly(a.appointmentDate) === form.date &&
+          (a.startTime || timeOnly(a.appointmentDate)) === label &&
+          a.status !== 'ملغاة'
+        );
+
+        return {
+          label,
+          reservedBy: reserved?.request?.clientName || reserved?.clientName || null,
+        };
+      });
+  }, [appointments, form.date, localToday]);
+
+  const selectedSlotConflict = useMemo(() => {
+    const hit = timeSlots.find((s) => s.label === form.startTime);
+    return hit?.reservedBy || null;
+  }, [timeSlots, form.startTime]);
+
+  useEffect(() => {
+    if (!timeSlots.length) return;
+    const exists = timeSlots.some((s) => s.label === form.startTime);
+    if (!exists) {
+      setForm((p) => ({ ...p, startTime: timeSlots[0].label }));
+    }
+  }, [timeSlots, form.startTime]);
 
   const prevDay = () => { const d = new Date(currentDate); d.setDate(d.getDate() - 1); setCurrentDate(d); };
   const nextDay = () => { const d = new Date(currentDate); d.setDate(d.getDate() + 1); setCurrentDate(d); };
 
   const save = () => {
     if (!form.clientName || !form.date) return;
+    const payload = { ...form };
+    if (payload.date < localToday) {
+      window.alert('التاريخ المختار منتهي. اختر تاريخا متاحا.');
+      return;
+    }
+    if (selectedSlotConflict) {
+      window.alert(`هذا الموعد محجوز بالفعل للعميل: ${selectedSlotConflict}`);
+      return;
+    }
     setSaving(true);
+    const appointmentDateIso = `${payload.date}T${payload.startTime}:00`;
+    const selectedReq = requests
+      .filter(r => {
+        const rPhone = r.phone || r.clientPhone || r.customerPhone || '';
+        const rName = r.clientName || r.customerName || '';
+        if (payload.clientPhone) return rPhone === payload.clientPhone;
+        return rName === payload.clientName;
+      })
+      .sort((a, b) => new Date(b.requestDate || 0) - new Date(a.requestDate || 0))[0];
+
     const newAppt = {
-      id: Date.now(), agentName: form.agentName, appointmentType: form.appointmentType,
-      appointmentDate: form.date, startTime: form.startTime, duration: Number(form.duration),
-      status: 'قادمة', request: { clientName: form.clientName, phone: form.clientPhone }, location: '', note: form.note
+      id: Date.now(), agentName: payload.agentName, appointmentType: payload.appointmentType,
+      appointmentDate: appointmentDateIso, startTime: payload.startTime, duration: Number(payload.duration),
+      status: 'قادمة', request: selectedReq?.id ? { id: selectedReq.id } : null, location: '', note: payload.note
     };
+    const resetForm = () => {
+      setCurrentDate(fromLocalDateStr(payload.date));
+      setView('يوم');
+      setShowForm(false);
+      setClientSearch('');
+      setForm({ clientName: '', clientPhone: '', agentName: AGENTS[0] || 'سلطان الغامدي', appointmentType: 'زيارة ميدانية', date: TODAY, startTime: '09:00', duration: 60, note: '' });
+      setSaving(false);
+    };
+
+    const buildAppt = (serverData) => normalizeAppointment({
+      ...(serverData || newAppt),
+      request: serverData?.request?.clientName ? serverData.request : {
+        clientName: payload.clientName,
+        clientPhone: payload.clientPhone,
+        confirmationNumber: selectedReq?.confirmationNumber || '',
+      },
+    });
+
     apiFetch('/admin/appointments', { method: 'POST', body: JSON.stringify(newAppt) })
       .then(d => {
-        setAppointments(p => [...p, d]);
-        setShowForm(false);
-        setClientSearch('');
-        setForm({ clientName: '', clientPhone: '', agentName: 'سلطان الغامدي', appointmentType: 'زيارة ميدانية', date: TODAY, startTime: '09:00', duration: 60, note: '' });
-        setSaving(false);
+        // Add the saved appointment optimistically — do NOT overwrite with a
+        // secondary GET that may return before the DB commits the new record.
+        setAppointments(p => [...p, buildAppt(d)]);
+        resetForm();
       })
       .catch(() => {
-        setAppointments(p => [...p, newAppt]);
-        setShowForm(false);
-        setClientSearch('');
-        setForm({ clientName: '', clientPhone: '', agentName: 'سلطان الغامدي', appointmentType: 'زيارة ميدانية', date: TODAY, startTime: '09:00', duration: 60, note: '' });
-        setSaving(false);
+        // Backend unreachable: add locally so the user sees the new entry
+        setAppointments(p => [...p, buildAppt(null)]);
+        resetForm();
       });
+  };
+
+  const updateAppointmentStatus = (appt, action, nextStatus) => {
+    if (!appt) return;
+
+    const applyLocal = (payload) => {
+      const normalized = normalizeAppointment(payload || { ...appt, status: nextStatus });
+      setAppointments((prev) => prev.map((a) => (a.id === appt.id ? { ...a, ...normalized } : a)));
+      setSelectedAppt((prev) => (prev?.id === appt.id ? { ...prev, ...normalized } : prev));
+    };
+
+    if (!appt.id || Number(appt.id) > 99999999999) {
+      applyLocal();
+      return;
+    }
+
+    apiFetch(`/admin/appointments/${appt.id}/${action}`, { method: 'PUT' })
+      .then((updated) => applyLocal(updated))
+      .catch(() => applyLocal());
   };
 
   const now = new Date();
@@ -944,7 +1308,9 @@ const Calendar = () => {
             {/* Agent columns with events */}
             <div className="flex h-full">
               {AGENTS.map(agent => {
-                const agentAppts = dayAppts.filter(a => a.agentName === agent);
+                const agentAppts = AGENTS.length === 1
+                  ? dayAppts
+                  : dayAppts.filter(a => a.agentName === agent);
                 return (
                   <div key={agent} className="flex-1 relative border-r border-gray-50 last:border-0">
                     {agentAppts.map(appt => {
@@ -1025,8 +1391,8 @@ const Calendar = () => {
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden flex-1">
         <div className="grid grid-cols-7 border-b border-gray-100">
           {days.map((d, i) => {
-            const ds = d.toISOString().split('T')[0];
-            const count = appointments.filter(a => a.appointmentDate === ds).length;
+            const ds = toLocalDateStr(d);
+            const count = appointments.filter(a => dateOnly(a.appointmentDate) === ds).length;
             const isTdy = d.toDateString() === now.toDateString();
             return (
               <div key={i} onClick={() => { setCurrentDate(d); setView('يوم'); }}
@@ -1042,8 +1408,8 @@ const Calendar = () => {
         </div>
         <div className="grid grid-cols-7 divide-x divide-gray-50" style={{ minHeight: '400px' }}>
           {days.map((d, i) => {
-            const ds = d.toISOString().split('T')[0];
-            const dayA = appointments.filter(a => a.appointmentDate === ds);
+            const ds = toLocalDateStr(d);
+            const dayA = appointments.filter(a => dateOnly(a.appointmentDate) === ds);
             return (
               <div key={i} className="p-2 space-y-1 overflow-hidden">
                 {dayA.slice(0, 4).map(a => {
@@ -1081,8 +1447,8 @@ const Calendar = () => {
           {Array.from({ length: daysInMonth }).map((_, i) => {
             const day = i + 1;
             const d = new Date(year, month, day);
-            const ds = d.toISOString().split('T')[0];
-            const dayA = appointments.filter(a => a.appointmentDate === ds);
+            const ds = toLocalDateStr(d);
+            const dayA = appointments.filter(a => dateOnly(a.appointmentDate) === ds);
             const isTdy = d.toDateString() === now.toDateString();
             const load = dayA.length;
             const loadColor = load >= 5 ? 'bg-red-100 text-red-600' : load >= 3 ? 'bg-amber-100 text-amber-600' : 'bg-green-100 text-green-600';
@@ -1143,12 +1509,15 @@ const Calendar = () => {
 
       {/* Legend */}
       <div className="flex items-center gap-3 flex-wrap">
-        {Object.entries(VISIT_COLORS).slice(0, 5).map(([type, cfg]) => (
+        {VISIT_TYPES.map((type) => {
+          const cfg = VISIT_COLORS[type];
+          return (
           <div key={type} className="flex items-center gap-1">
             <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.color }} />
             <span className="text-[10px] text-gray-500">{type}</span>
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* View content */}
@@ -1193,9 +1562,24 @@ const Calendar = () => {
                       ))}
                     </div>
                     <div className="flex gap-2 mt-5">
-                      <button className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-medium rounded-lg hover:bg-green-600 hover:text-white transition-colors">تأكيد الإنجاز</button>
-                      <button className="flex-1 py-2 bg-amber-50 text-amber-700 text-xs font-medium rounded-lg hover:bg-amber-500 hover:text-white transition-colors">تأجيل</button>
-                      <button className="flex-1 py-2 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-500 hover:text-white transition-colors">إلغاء</button>
+                      <button
+                        onClick={() => updateAppointmentStatus(selectedAppt, 'complete', 'مكتملة')}
+                        className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-medium rounded-lg hover:bg-green-600 hover:text-white transition-colors"
+                      >
+                        تأكيد الإنجاز
+                      </button>
+                      <button
+                        onClick={() => updateAppointmentStatus(selectedAppt, 'postpone', 'مرجأة')}
+                        className="flex-1 py-2 bg-amber-50 text-amber-700 text-xs font-medium rounded-lg hover:bg-amber-500 hover:text-white transition-colors"
+                      >
+                        تأجيل
+                      </button>
+                      <button
+                        onClick={() => updateAppointmentStatus(selectedAppt, 'cancel', 'ملغاة')}
+                        className="flex-1 py-2 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-500 hover:text-white transition-colors"
+                      >
+                        إلغاء
+                      </button>
                     </div>
                   </>
                 );
@@ -1215,7 +1599,7 @@ const Calendar = () => {
                 <label className="text-xs text-gray-500 mb-1 block">نوع الزيارة *</label>
                 <select value={form.appointmentType} onChange={e => setForm(p => ({ ...p, appointmentType: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors">
-                  {Object.keys(VISIT_COLORS).slice(0, 5).map(t => <option key={t}>{t}</option>)}
+                  {VISIT_TYPES.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
@@ -1236,7 +1620,7 @@ const Calendar = () => {
                       type="button"
                       onClick={() => {
                         setClientSearch(`${c.name} - ${c.phone}`);
-                        setForm(p => ({ ...p, clientName: c.name, clientPhone: c.phone }));
+                        setForm(p => ({ ...p, clientName: c.name, clientPhone: c.phone, requestId: c.requestId || null }));
                       }}
                       className="w-full text-right px-3 py-2 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors"
                     >
@@ -1251,23 +1635,29 @@ const Calendar = () => {
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">التاريخ *</label>
                   <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))}
+                    min={localToday}
                     className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">وقت البداية *</label>
-                  <input type="time" value={form.startTime} min="06:00" max="17:00"
+                  <select value={form.startTime}
                     onChange={e => setForm(p => ({ ...p, startTime: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors">
+                    {timeSlots.length === 0 ? (
+                      <option value="">لا توجد أوقات متاحة</option>
+                    ) : timeSlots.map((slot) => (
+                      <option key={slot.label} value={slot.label} disabled={Boolean(slot.reservedBy)}>
+                        {slot.label}{slot.reservedBy ? ` — محجوز (${slot.reservedBy})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedSlotConflict && (
+                    <p className="text-[10px] text-red-600 mt-1">هذا الوقت محجوز للعميل: {selectedSlotConflict}</p>
+                  )}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">المدة (دقيقة) *</label>
-                  <select value={form.duration} onChange={e => setForm(p => ({ ...p, duration: e.target.value }))}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors">
-                    {[30, 60, 90, 120, 150, 180, 240].map(d => <option key={d} value={d}>{d} د</option>)}
-                  </select>
-                </div>
+              
                 <div>
                   <label className="text-xs text-gray-500 mb-1 block">الفني *</label>
                   <select value={form.agentName} onChange={e => setForm(p => ({ ...p, agentName: e.target.value }))}
@@ -1309,14 +1699,24 @@ const Calendar = () => {
 };
 
 // ── MODULE 2: العملاء ─────────────────────────────────────────────
+// ── برنامج الولاء — يتطابق تماماً مع الواجهة الأمامية (Landing.jsx) ──
+// الطلب 1  : لا خصم
+// الطلبات 2–4 : خصم تلقائي 5%
+// الطلب 5+   : خصم استثنائي 50% (نصف السعر)
 const LOYALTY_LEVELS = [
-  { min: 0, max: 0, label: 'جديد',     color: '#6b7280', discount: '—',   icon: '🆕' },
-  { min: 1, max: 1, label: 'برونزي',   color: '#92400e', discount: '—',   icon: '🥉' },
-  { min: 2, max: 2, label: 'فضي',      color: '#475569', discount: '5%',  icon: '🥈' },
-  { min: 3, max: 3, label: 'ذهبي',     color: '#b45309', discount: '10%', icon: '🥇' },
-  { min: 4, max: 99, label: 'بلاتيني', color: '#1c1b1b', discount: '15%', icon: '💎' },
+  { min: 0, max: 1,  label: 'جديد',    color: '#6b7280', discount: '—',   icon: '🆕', nextDiscount: '5%'  },
+  { min: 2, max: 4,  label: 'فضي',     color: '#64748b', discount: '5%',  icon: '🥈', nextDiscount: '5%'  },
+  { min: 5, max: 99, label: 'بلاتيني', color: '#B89B5E', discount: '50%', icon: '💎', nextDiscount: '50%' },
 ];
 const loyaltyOf = (n) => LOYALTY_LEVELS.find(l => n >= l.min && n <= l.max) || LOYALTY_LEVELS[0];
+
+// خصم الطلب التالي بناءً على عدد الطلبات الحالية
+const getNextOrderDiscount = (validOrderCount) => {
+  const next = validOrderCount + 1;
+  if (next >= 5) return '50%';
+  if (next >= 2) return '5%';
+  return '—';
+};
 
 const Clients = () => {
   const [requests, setRequests]       = useState([]);
@@ -1343,7 +1743,7 @@ const Clients = () => {
   }, {});
 
   const clients = Object.values(clientMap).filter(c => {
-    const completedOrders = c.orders.filter(o => normalizeStatus(o.status) === 'installed').length;
+    const completedOrders = c.orders.filter(o => normalizeStatus(o.status) !== 'cancelled').length;
     const loy = loyaltyOf(completedOrders);
     const matchSearch = !search || c.name?.includes(search) || c.phone?.includes(search);
     const matchLoyalty = loyaltyFilter === 'الكل' || loy.label === loyaltyFilter;
@@ -1351,21 +1751,21 @@ const Clients = () => {
   });
 
   const sel = selectedKey ? clientMap[selectedKey] : null;
-  const selCompleted = sel ? sel.orders.filter(o => normalizeStatus(o.status) === 'installed').length : 0;
+  const selCompleted = sel ? sel.orders.filter(o => normalizeStatus(o.status) !== 'cancelled').length : 0;
   const selLoyalty = sel ? loyaltyOf(selCompleted) : null;
   const selRevenue = sel ? sel.orders.reduce((s, o) => s + (Number(o.estimatedPrice) || 0), 0) : 0;
   const selAppts = sel ? MOCK_APPOINTMENTS.filter(a => a.request?.clientName === sel.name) : [];
   const selLastOrder = sel ? [...sel.orders].sort((a, b) => new Date(b.requestDate || 0) - new Date(a.requestDate || 0))[0] : null;
   const selWizardData = selLastOrder ? {
-    design: normalizeDesignType(selLastOrder.designType || selLastOrder.design),
-    size: normalizeSizeInfo(selLastOrder.sizeInfo || selLastOrder.size),
-    fixation: normalizeFixationType(selLastOrder.fixationType || selLastOrder.fixation),
-    color: normalizeColorName(selLastOrder.fabricColor || selLastOrder.color),
+    design: toArabicDesign(selLastOrder.designType || selLastOrder.design),
+    size: toArabicSize(selLastOrder.sizeInfo || selLastOrder.size),
+    fixation: toArabicFixation(selLastOrder.fixationType || selLastOrder.fixation),
+    color: toArabicColor(selLastOrder.fabricColor || selLastOrder.color),
     address: selLastOrder.address || '—',
     requestNo: selLastOrder.confirmationNumber || `#${selLastOrder.id}`,
   } : null;
 
-  const TABS = ['معلومات شخصية', 'الطلبات', 'بيانات الطلب', 'الموقع', 'الولاء', 'المواعيد', 'الملاحظات'];
+  const TABS = ['معلومات شخصية', 'الطلبات', 'بيانات الطلب', 'الولاء', 'المواعيد', 'الملاحظات'];
 
   const saveNote = () => {
     if (!noteText.trim()) return;
@@ -1404,7 +1804,7 @@ const Clients = () => {
         <div className="lg:col-span-1 bg-white border border-gray-100 rounded-xl shadow-sm overflow-y-auto">
           <div className="divide-y divide-gray-50">
             {clients.map((c, i) => {
-              const completed = c.orders.filter(o => normalizeStatus(o.status) === 'installed').length;
+              const completed = c.orders.filter(o => normalizeStatus(o.status) !== 'cancelled').length;
               const loy = loyaltyOf(completed);
               const key = c.phone || c.name;
               const isSelected = selectedKey === key;
@@ -1496,7 +1896,6 @@ const Clients = () => {
                         ['إجمالي الإنفاق', formatCurrency(selRevenue)],
                         ['تاريخ الانضمام', formatDate(sel.joinDate)],
                         ['مستوى الولاء', selLoyalty?.label],
-                        ['مصدر التواصل', 'واتساب بوت'],
                       ].map(([k, v]) => (
                         <div key={k} className="bg-gray-50 rounded-lg p-3">
                           <p className="text-[10px] text-gray-400 mb-1">{k}</p>
@@ -1607,11 +2006,11 @@ const Clients = () => {
                           <StatusBadge status={o.status} />
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-xs">
-                          <div><span className="text-gray-400 block">التصميم</span><span className="font-medium">{o.designType}</span></div>
-                          <div><span className="text-gray-400 block">الحجم</span><span className="font-medium">{o.size}</span></div>
-                          <div><span className="text-gray-400 block">اللون</span><span className="font-medium">{o.fabricColor}</span></div>
-                          <div><span className="text-gray-400 block">التثبيت</span><span className="font-medium">{o.fixation}</span></div>
-                          <div><span className="text-gray-400 block">السعر</span><span className="font-medium">{o.estimatedPrice ? formatCurrency(o.estimatedPrice) : '—'}</span></div>
+                          <div><span className="text-gray-400 block">التصميم</span><span className="font-medium">{toArabicDesign(o.designType || o.design)}</span></div>
+                          <div><span className="text-gray-400 block">الحجم</span><span className="font-medium">{toArabicSize(o.sizeInfo || o.size)}</span></div>
+                          <div><span className="text-gray-400 block">اللون</span><span className="font-medium">{toArabicColor(o.fabricColor || o.color)}</span></div>
+                          <div><span className="text-gray-400 block">التثبيت</span><span className="font-medium">{toArabicFixation(o.fixationType || o.fixation)}</span></div>
+                          <div><span className="text-gray-400 block">السعر المتوقع</span><span className="font-medium text-emerald-700">{o.estimatedPrice ? formatCurrency(o.estimatedPrice) : '—'}</span></div>
                         </div>
                       </div>
                     ))}
@@ -1654,33 +2053,73 @@ const Clients = () => {
                 {/* Tab: الولاء */}
                 {activeTab === 'الولاء' && (
                   <div className="space-y-5">
-                    <div className="bg-gray-50 rounded-xl p-5">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-bold text-gray-900">{selLoyalty?.icon} بطاقة الأطلسي — {selLoyalty?.label}</h4>
-                        <span className="text-xs text-gray-400">خصم {selLoyalty?.discount}</span>
-                      </div>
-                      <div className="flex gap-1.5 mb-3">
-                        {[1, 2, 3, 4, 5].map(i => (
-                          <div key={i} className={`flex-1 h-2 rounded-full ${i <= selCompleted ? 'bg-gray-800' : 'bg-gray-200'}`} />
-                        ))}
-                      </div>
-                      <p className="text-xs text-gray-500">
-                        {selCompleted} طلب منجز من أصل 5
-                        {selCompleted < 5 && ` — ${5 - selCompleted} طلب للوصول إلى المستوى التالي`}
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">مستويات البرنامج</h4>
-                      <div className="space-y-2">
-                        {LOYALTY_LEVELS.map((l, i) => (
-                          <div key={i} className={`flex items-center justify-between p-3 rounded-lg border ${selLoyalty?.label === l.label ? 'border-gray-300 bg-gray-50' : 'border-gray-100'}`}>
-                            <div className="flex items-center gap-2">
-                              <span>{l.icon}</span>
-                              <span className="text-sm font-medium" style={{ color: l.color }}>{l.label}</span>
-                            </div>
-                            <span className="text-xs text-gray-400">خصم {l.discount}</span>
+                    {/* بطاقة الولاء الحالية */}
+                    <div className="rounded-xl p-5 border" style={{ background: `${selLoyalty?.color}08`, borderColor: `${selLoyalty?.color}30` }}>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <span className="text-2xl">{selLoyalty?.icon}</span>
+                          <div>
+                            <h4 className="font-bold text-gray-900">بطاقة الأطلسي — {selLoyalty?.label}</h4>
+                            <p className="text-[10px] text-gray-400 mt-0.5">{selCompleted} طلب فعّال · خصم حالي {selLoyalty?.discount}</p>
                           </div>
+                        </div>
+                        {selLoyalty?.discount !== '—' && (
+                          <span className="text-sm font-black px-3 py-1.5 rounded-full" style={{ color: selLoyalty?.color, background: `${selLoyalty?.color}15` }}>
+                            {selLoyalty?.discount} خصم
+                          </span>
+                        )}
+                      </div>
+                      {/* شريط التقدم (5 طلبات) */}
+                      <div className="flex gap-1.5 mb-2">
+                        {[1, 2, 3, 4, 5].map(i => (
+                          <div key={i} className="flex-1 h-2 rounded-full transition-all" style={{
+                            backgroundColor: i <= selCompleted ? selLoyalty?.color : '#e5e7eb'
+                          }} />
                         ))}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] text-gray-500">{selCompleted} / 5 طلبات</p>
+                        {selCompleted < 5 && (
+                          <p className="text-[11px] font-semibold" style={{ color: selLoyalty?.color }}>
+                            خصم الطلب التالي: {getNextOrderDiscount(selCompleted)}
+                          </p>
+                        )}
+                        {selCompleted >= 5 && (
+                          <p className="text-[11px] font-bold text-amber-600">🎉 مستحق لخصم 50%</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* شرح مسار برنامج الولاء */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">مسار برنامج الولاء</h4>
+                      <div className="space-y-2">
+                        {[
+                          { orders: '1', label: 'الطلب الأول', discount: '—', note: 'لا خصم', color: '#6b7280' },
+                          { orders: '2–4', label: 'الطلبات 2 إلى 4', discount: '5%', note: 'خصم تلقائي', color: '#64748b' },
+                          { orders: '5+', label: 'الطلب الخامس', discount: '50%', note: 'نصف السعر 🎉', color: '#B89B5E' },
+                        ].map((tier, i) => {
+                          const isActive = (tier.orders === '1' && selCompleted <= 1) ||
+                                           (tier.orders === '2–4' && selCompleted >= 2 && selCompleted <= 4) ||
+                                           (tier.orders === '5+' && selCompleted >= 5);
+                          return (
+                            <div key={i} className={`flex items-center justify-between p-3 rounded-lg border transition-all ${isActive ? 'border-gray-300 bg-gray-50 shadow-sm' : 'border-gray-100'}`}>
+                              <div className="flex items-center gap-3">
+                                <span className="text-[10px] font-mono text-gray-400 bg-gray-100 px-2 py-0.5 rounded">الطلب {tier.orders}</span>
+                                <span className="text-sm font-medium text-gray-700">{tier.label}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400">{tier.note}</span>
+                                {tier.discount !== '—' && (
+                                  <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
+                                    {tier.discount}
+                                  </span>
+                                )}
+                                {isActive && <span className="w-2 h-2 rounded-full bg-gray-700 flex-shrink-0" />}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -1698,7 +2137,7 @@ const Clients = () => {
                           <div className="flex items-start justify-between mb-2">
                             <div>
                               <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ color: cfg.color, backgroundColor: cfg.bg }}>{a.appointmentType}</span>
-                              <p className="text-xs text-gray-400 mt-1">{a.appointmentDate} — {a.startTime}</p>
+                              <p className="text-xs text-gray-400 mt-1">{formatDate(a.appointmentDate)} — {a.startTime}</p>
                             </div>
                             <span className="text-[10px] text-gray-400 bg-gray-50 px-2 py-0.5 rounded-full">{a.status}</span>
                           </div>
@@ -1769,7 +2208,7 @@ const Loyalty = () => {
   }, {});
   const getLevel = (n) => LOYALTY_LEVELS.findLast(l => n >= l.min) || LOYALTY_LEVELS[0];
   const clientsRows = Object.values(clientMap).map((c) => {
-    const done = c.orders.filter(o => normalizeStatus(o.status) === 'installed').length;
+    const done = c.orders.filter(o => normalizeStatus(o.status) !== 'cancelled').length;
     const level = getLevel(done);
     const next = LOYALTY_LEVELS.find(l => l.min > done);
     return { ...c, done, level, next };
@@ -1820,9 +2259,9 @@ const Loyalty = () => {
             <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
               <th className="px-5 py-3">العميل</th>
               <th className="px-5 py-3">الجوال</th>
-              <th className="px-5 py-3">الطلبات المنجزة</th>
-              <th className="px-5 py-3">المستوى</th>
-              <th className="px-5 py-3">الخصم التالي</th>
+              <th className="px-5 py-3">الطلبات الفعّالة</th>
+              <th className="px-5 py-3">المستوى الحالي</th>
+              <th className="px-5 py-3">خصم الطلب التالي</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
@@ -1835,8 +2274,14 @@ const Loyalty = () => {
                   <td className="px-5 py-3">
                     <span className="text-xs font-medium px-2.5 py-1 rounded-full" style={{ color: c.level.color, background: `${c.level.color}15` }}>{c.level.label}</span>
                   </td>
-                  <td className="px-5 py-3 text-xs text-gray-500">
-                    {c.next ? `${formatNumber(c.next.min - c.done)} طلب لـ ${c.next.discount}` : 'أقصى مستوى ✓'}
+                  <td className="px-5 py-3">
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
+                      getNextOrderDiscount(c.done) === '50%' ? 'bg-amber-100 text-amber-700' :
+                      getNextOrderDiscount(c.done) === '5%'  ? 'bg-blue-50 text-blue-600'   :
+                      'text-gray-300'
+                    }`}>
+                      {getNextOrderDiscount(c.done) === '—' ? '—' : `خصم ${getNextOrderDiscount(c.done)}`}
+                    </span>
                   </td>
                 </tr>
               );
@@ -1909,33 +2354,138 @@ const Reports = () => {
 };
 
 // ── Page: Settings ────────────────────────────────────────────────
+// ── Settings: role-aware ─────────────────────────────────────────
+const ROLE_LABELS = { MAIN_ADMIN: 'مشرف رئيسي', EDITOR: 'مشرف' };
+
 const Settings = () => {
-  const [admins, setAdmins] = useState([
-    { id: 1, email: 'admin@atlasi.com', role: 'مشرف رئيسي', createdAt: new Date().toISOString() },
-    { id: 2, email: 'manager@atlasi.com', role: 'مدير', createdAt: new Date().toISOString() }
-  ]);
-  const [newAdmin, setNewAdmin] = useState({ email: '', password: '' });
-  const [saved, setSaved] = useState(false);
+  const currentUser = React.useContext(UserContext);
+  const isMainAdmin = currentUser?.role === 'MAIN_ADMIN';
+
+  // ─ State shared
+  const [saved,  setSaved]  = useState(false);
+  const [error,  setError]  = useState('');
+  const flash = (isErr, msg) => {
+    if (isErr) setError(msg);
+    else { setSaved(true); setError(''); setTimeout(() => setSaved(false), 2500); }
+  };
+
+  // ─ MAIN_ADMIN state
+  const [admins,   setAdmins]   = useState([]);
+  const [newAdmin, setNewAdmin] = useState({ fullName: '', title: '', email: '', password: '', role: 'EDITOR' });
+  const [editRow,  setEditRow]  = useState(null); // { id, fullName, title, email, password, role }
+
+  const adminHeaders = { 'X-Admin-Id': String(currentUser?.id || '') };
+
+  const loadAdmins = useCallback(() => {
+    setError('');
+    apiFetch('/auth/admins', { headers: adminHeaders })
+      .then(list => setAdmins(Array.isArray(list) ? list : []))
+      .catch(e => setError(e?.message || 'تعذر تحميل قائمة المشرفين'));
+  }, [currentUser?.id]);
+
+  useEffect(() => { if (isMainAdmin) loadAdmins(); }, [isMainAdmin, loadAdmins]);
 
   const addAdmin = () => {
-    if (!newAdmin.email || !newAdmin.password) return;
-    setAdmins([...admins, { id: Date.now(), email: newAdmin.email, role: 'محرر', createdAt: new Date().toISOString() }]);
-    setNewAdmin({ email: '', password: '' });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    if (!newAdmin.email || !newAdmin.password) { flash(true, 'يرجى إدخال البريد الإلكتروني وكلمة المرور'); return; }
+    apiFetch('/auth/admins', { method: 'POST', headers: adminHeaders, body: JSON.stringify(newAdmin) })
+      .then(() => { setNewAdmin({ fullName: '', title: '', email: '', password: '', role: 'EDITOR' }); flash(false); loadAdmins(); })
+      .catch(e => flash(true, e?.message || 'تعذر إضافة المشرف'));
+  };
+
+  const saveEdit = () => {
+    if (!editRow) return;
+    apiFetch(`/auth/admins/${editRow.id}`, { method: 'PUT', headers: adminHeaders, body: JSON.stringify(editRow) })
+      .then(() => { setEditRow(null); flash(false); loadAdmins(); })
+      .catch(e => flash(true, e?.message || 'تعذر تعديل المشرف'));
   };
 
   const removeAdmin = (id) => {
-    setAdmins(admins.filter(a => a.id !== id));
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    apiFetch(`/auth/admins/${id}`, { method: 'DELETE', headers: adminHeaders })
+      .then(() => { flash(false); loadAdmins(); })
+      .catch(e => flash(true, e?.message || 'تعذر حذف المشرف'));
   };
 
+  // ─ EDITOR (self profile) state
+  const [profile, setProfile] = useState({
+    fullName: currentUser?.fullName || '',
+    title:    currentUser?.title    || '',
+    email:    currentUser?.email    || '',
+    password: '',
+  });
+
+  const saveProfile = () => {
+    const body = { fullName: profile.fullName, title: profile.title, email: profile.email };
+    if (profile.password) body.password = profile.password;
+    apiFetch('/auth/profile', {
+      method: 'PUT',
+      headers: { 'X-Admin-Id': String(currentUser?.id || '') },
+      body: JSON.stringify(body),
+    })
+      .then(updated => {
+        // Update localStorage so header reflects new name
+        localStorage.setItem(ADMIN_NAME_KEY,  updated.fullName || '');
+        localStorage.setItem(ADMIN_TITLE_KEY, updated.title    || '');
+        localStorage.setItem(ADMIN_EMAIL_KEY, updated.email    || '');
+        setProfile(p => ({ ...p, password: '' }));
+        flash(false);
+      })
+      .catch(e => flash(true, e?.message || 'تعذر حفظ البيانات'));
+  };
+
+  // ── JSX ──────────────────────────────────────────────────────────
   return (
     <div className="space-y-6 max-w-4xl">
-      <h2 className="text-xl font-bold text-gray-900">إدارة المشرفين</h2>
+      <h2 className="text-xl font-bold text-gray-900">
+        {isMainAdmin ? 'إدارة المشرفين' : 'الملف الشخصي'}
+      </h2>
 
-      {/* قائمة المشرفين */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+
+      {/* ── EDITOR: profile form only ──────────────────────────── */}
+      {!isMainAdmin && (
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[18px]">manage_accounts</span>
+            تعديل بياناتك الشخصية
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-xs text-gray-500 mb-1.5 block">الاسم الكامل</label>
+              <input value={profile.fullName} onChange={e => setProfile(p => ({ ...p, fullName: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1.5 block">اللقب / المسمى الوظيفي</label>
+              <input value={profile.title} onChange={e => setProfile(p => ({ ...p, title: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1.5 block">البريد الإلكتروني</label>
+              <input type="email" value={profile.email} onChange={e => setProfile(p => ({ ...p, email: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 mb-1.5 block">كلمة المرور الجديدة <span className="text-gray-400">(اتركها فارغة للإبقاء)</span></label>
+              <input type="password" placeholder="••••••••" value={profile.password}
+                onChange={e => setProfile(p => ({ ...p, password: e.target.value }))}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
+            </div>
+          </div>
+          <button onClick={saveProfile}
+            className="px-5 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-black transition-colors flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px]">save</span>
+            حفظ التغييرات
+          </button>
+        </div>
+      )}
+
+      {/* ── MAIN_ADMIN: admin list ──────────────────────────────── */}
+      {isMainAdmin && (
+        <>
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6">
             <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px]">admin_panel_settings</span>
@@ -1943,62 +2493,247 @@ const Settings = () => {
             </h3>
             <div className="space-y-3">
               {admins.map(admin => (
-                <div key={admin.id} className="flex items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-lg hover:bg-gray-100 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">{admin.email}</p>
-                    <p className="text-xs text-gray-500 mt-1">الدور: <span className="font-semibold text-gray-700">{admin.role}</span></p>
-                    <p className="text-[10px] text-gray-400 mt-1">منذ: {formatDate(admin.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
-                      <span className="material-symbols-outlined text-[16px]">edit</span>
-                    </button>
-                    <button onClick={() => removeAdmin(admin.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
-                      <span className="material-symbols-outlined text-[16px]">delete</span>
-                    </button>
-                  </div>
+                <div key={admin.id}>
+                  {editRow?.id === admin.id ? (
+                    // ── Inline edit form ──────────────────────────
+                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-lg space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-[10px] text-gray-500 mb-1 block">الاسم الكامل</label>
+                          <input value={editRow.fullName} onChange={e => setEditRow(r => ({ ...r, fullName: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 mb-1 block">اللقب</label>
+                          <input value={editRow.title} onChange={e => setEditRow(r => ({ ...r, title: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 mb-1 block">البريد الإلكتروني</label>
+                          <input type="email" value={editRow.email} onChange={e => setEditRow(r => ({ ...r, email: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 mb-1 block">كلمة مرور جديدة</label>
+                          <input type="password" placeholder="اتركها فارغة" value={editRow.password || ''}
+                            onChange={e => setEditRow(r => ({ ...r, password: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-gray-500 mb-1 block">الدور</label>
+                          <select value={editRow.role} onChange={e => setEditRow(r => ({ ...r, role: e.target.value }))}
+                            className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm outline-none focus:border-blue-400 bg-white">
+                            <option value="EDITOR">مشرف</option>
+                            <option value="MAIN_ADMIN">مشرف رئيسي</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={saveEdit}
+                          className="px-4 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[14px]">check</span> حفظ
+                        </button>
+                        <button onClick={() => setEditRow(null)}
+                          className="px-4 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 transition-colors">
+                          إلغاء
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    // ── Read row ──────────────────────────────────
+                    <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-lg hover:bg-gray-100 transition-colors">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-gray-900">{admin.fullName || admin.email}</p>
+                          {admin.title && <span className="text-[10px] text-gray-500">— {admin.title}</span>}
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${admin.role === 'MAIN_ADMIN' ? 'bg-amber-100 text-amber-700' : 'bg-blue-50 text-blue-600'}`}>
+                            {ROLE_LABELS[admin.role] || 'مشرف'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">{admin.email}</p>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button onClick={() => setEditRow({ ...admin, password: '' })}
+                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="تعديل">
+                          <span className="material-symbols-outlined text-[16px]">edit</span>
+                        </button>
+                        <button onClick={() => removeAdmin(admin.id)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="حذف">
+                          <span className="material-symbols-outlined text-[16px]">delete</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
               {admins.length === 0 && <p className="text-sm text-gray-400 text-center py-6">لا يوجد مشرفون</p>}
             </div>
           </div>
 
-      {/* إضافة مشرف جديد */}
+          {/* إضافة مشرف جديد */}
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-6">
             <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <span className="material-symbols-outlined text-[18px]">person_add</span>
               إضافة مشرف جديد
             </h3>
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-gray-500 mb-1.5 block">عنوان البريد الإلكتروني *</label>
+                <label className="text-xs text-gray-500 mb-1.5 block">الاسم الكامل</label>
+                <input placeholder="مثال: محمد الشمري" value={newAdmin.fullName}
+                  onChange={e => setNewAdmin(a => ({ ...a, fullName: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1.5 block">اللقب / المسمى الوظيفي</label>
+                <input placeholder="مثال: مشرف المبيعات" value={newAdmin.title}
+                  onChange={e => setNewAdmin(a => ({ ...a, title: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 mb-1.5 block">البريد الإلكتروني *</label>
                 <input type="email" placeholder="admin@example.com" value={newAdmin.email}
-                  onChange={e => setNewAdmin({...newAdmin, email: e.target.value})}
+                  onChange={e => setNewAdmin(a => ({ ...a, email: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
               </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1.5 block">كلمة المرور *</label>
                 <input type="password" placeholder="••••••••" value={newAdmin.password}
-                  onChange={e => setNewAdmin({...newAdmin, password: e.target.value})}
+                  onChange={e => setNewAdmin(a => ({ ...a, password: e.target.value }))}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors" />
               </div>
-              <button onClick={addAdmin}
-                className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2">
-                <span className="material-symbols-outlined text-[16px]">add</span>
-                إضافة المشرف
-              </button>
+              <div>
+                <label className="text-xs text-gray-500 mb-1.5 block">الدور</label>
+                <select value={newAdmin.role} onChange={e => setNewAdmin(a => ({ ...a, role: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-400 transition-colors bg-white">
+                  <option value="EDITOR">مشرف</option>
+                  <option value="MAIN_ADMIN">مشرف رئيسي</option>
+                </select>
+              </div>
             </div>
+            <button onClick={addAdmin}
+              className="mt-4 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+              <span className="material-symbols-outlined text-[16px]">add</span>
+              إضافة المشرف
+            </button>
           </div>
+        </>
+      )}
 
       {saved && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <p className="text-sm text-green-800 flex items-center gap-2">
-                <span className="material-symbols-outlined text-[16px]">check_circle</span>
-                تم حفظ التغييرات بنجاح
-              </p>
-            </div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <p className="text-sm text-green-800 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[16px]">check_circle</span>
+            تم حفظ التغييرات بنجاح
+          </p>
+        </div>
       )}
+    </div>
+  );
+};
+
+// ── Page: Catalogue / Stock ───────────────────────────────────────
+const CATALOGUE_PRODUCTS = [
+  { code: 'ATL-1S',   design: 'صحراء', size: 'Single', fixation: '—',      costBeige: 1680, costNoir: 1008, sellMin: 1290, sellMax: 1790 },
+  { code: 'ATL-1B',   design: 'صحراء', size: 'Double', fixation: '—',      costBeige: 2236, costNoir: 1565, sellMin: 1999, sellMax: 2599 },
+  { code: 'ATL-2S-H', design: 'ملكي',  size: 'Single', fixation: 'معلّق',  costBeige: 976,  costNoir: 683,  sellMin: 1499, sellMax: 1899 },
+  { code: 'ATL-2B-H', design: 'ملكي',  size: 'Double', fixation: 'معلّق',  costBeige: 1715, costNoir: 1200, sellMin: 1999, sellMax: 2599 },
+  { code: 'ATL-2S-C', design: 'ملكي',  size: 'Single', fixation: 'أعمدة',  costBeige: 1354, costNoir: 948,  sellMin: 1999, sellMax: 2399 },
+  { code: 'ATL-2B-C', design: 'ملكي',  size: 'Double', fixation: 'أعمدة',  costBeige: 2160, costNoir: 1512, sellMin: 2399, sellMax: 2999 },
+  { code: 'ATL-3S-H', design: 'نيوم',  size: 'Single', fixation: 'معلّق',  costBeige: 670,  costNoir: 469,  sellMin: 999,  sellMax: 999  },
+  { code: 'ATL-3B-H', design: 'نيوم',  size: 'Double', fixation: 'معلّق',  costBeige: 1090, costNoir: 763,  sellMin: 1299, sellMax: 1699 },
+  { code: 'ATL-3S-C', design: 'نيوم',  size: 'Single', fixation: 'أعمدة',  costBeige: 1140, costNoir: 798,  sellMin: 1299, sellMax: 1699 },
+  { code: 'ATL-3B-C', design: 'نيوم',  size: 'Double', fixation: 'أعمدة',  costBeige: 2080, costNoir: 1456, sellMin: 1899, sellMax: 2599 },
+];
+
+const Catalogue = () => {
+  const [requests, setRequests] = useState([]);
+  useEffect(() => {
+    apiFetch('/admin/requests').then(setRequests).catch(() => setRequests(MOCK_REQUESTS));
+  }, []);
+
+  // عدد الطلبات لكل موديل
+  const ordersByCode = requests.reduce((acc, r) => {
+    const design = String(r.designType || '').toLowerCase();
+    const size   = String(r.sizeInfo  || '').toLowerCase();
+    const fix    = String(r.fixationType || '').toLowerCase();
+    let code = null;
+    if (design.includes('sahra') || design.includes('صحراء')) {
+      code = size.includes('double') || size.includes('كبير') ? 'ATL-1B' : 'ATL-1S';
+    } else if (design.includes('malaki') || design.includes('ملكي')) {
+      const isDouble = size.includes('double') || size.includes('كبير');
+      const isWall   = fix.includes('wall') || fix.includes('mural') || fix.includes('معلق');
+      code = isDouble ? (isWall ? 'ATL-2B-H' : 'ATL-2B-C') : (isWall ? 'ATL-2S-H' : 'ATL-2S-C');
+    } else if (design.includes('neom') || design.includes('نيوم')) {
+      const isDouble = size.includes('double') || size.includes('كبير');
+      const isWall   = fix.includes('wall') || fix.includes('mural') || fix.includes('معلق');
+      code = isDouble ? (isWall ? 'ATL-3B-H' : 'ATL-3B-C') : (isWall ? 'ATL-3S-H' : 'ATL-3S-C');
+    }
+    if (code) acc[code] = (acc[code] || 0) + 1;
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-xl font-bold text-gray-900">الكتالوج والتسعير</h2>
+        <span className="text-xs text-gray-400">{CATALOGUE_PRODUCTS.length} موديلات</span>
+      </div>
+
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+        <span className="material-symbols-outlined text-amber-600 flex-shrink-0">info</span>
+        <div>
+          <p className="text-xs font-semibold text-amber-800">مرجع التسعير الرسمي</p>
+          <p className="text-[11px] text-amber-700 mt-0.5">الأسعار المعروضة هي نطاق الأسعار الافتراضي. السعر النهائي يُحدد بعد زيارة الموقع ورفع القياسات.</p>
+        </div>
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
+        <table className="w-full text-right">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">
+              <th className="px-4 py-3">الكود</th>
+              <th className="px-4 py-3">التصميم</th>
+              <th className="px-4 py-3">الحجم</th>
+              <th className="px-4 py-3">التثبيت</th>
+              <th className="px-4 py-3">تكلفة بيج</th>
+              <th className="px-4 py-3">تكلفة أسود</th>
+              <th className="px-4 py-3">أدنى سعر بيع</th>
+              <th className="px-4 py-3">أعلى سعر بيع</th>
+              <th className="px-4 py-3">هامش</th>
+              <th className="px-4 py-3">طلبات</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {CATALOGUE_PRODUCTS.map((p, i) => {
+              const marginPct = Math.round(((p.sellMin - p.costBeige) / p.sellMin) * 100);
+              const orderCount = ordersByCode[p.code] || 0;
+              return (
+                <tr key={i} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 font-mono text-xs text-blue-600 font-bold">{p.code}</td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-800">{p.design}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">{p.size}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600">{p.fixation}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{formatCurrency(p.costBeige)}</td>
+                  <td className="px-4 py-3 text-xs text-gray-500">{formatCurrency(p.costNoir)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-emerald-700">{formatCurrency(p.sellMin)}</td>
+                  <td className="px-4 py-3 text-sm font-semibold text-emerald-700">{formatCurrency(p.sellMax)}</td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${marginPct >= 40 ? 'bg-green-100 text-green-700' : marginPct >= 20 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                      {marginPct}%
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    {orderCount > 0
+                      ? <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">{formatNumber(orderCount)}</span>
+                      : <span className="text-xs text-gray-300">—</span>
+                    }
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };
@@ -2014,7 +2749,20 @@ const Login = ({ onSuccess }) => {
     setLoading(true); setError('');
     fetch(`${API}/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password: pass }) })
       .then(r => r.json())
-      .then(d => { d.success ? onSuccess() : setError(d.message || 'بيانات غير صحيحة'); })
+      .then(d => {
+        if (d.success) {
+          localStorage.setItem(ADMIN_AUTH_KEY,    '1');
+          localStorage.setItem(ADMIN_AUTH_TS_KEY, String(Date.now()));
+          localStorage.setItem(ADMIN_ID_KEY,      String(d.id    || ''));
+          localStorage.setItem(ADMIN_ROLE_KEY,    d.role          || 'EDITOR');
+          localStorage.setItem(ADMIN_NAME_KEY,    d.fullName      || '');
+          localStorage.setItem(ADMIN_TITLE_KEY,   d.title         || '');
+          localStorage.setItem(ADMIN_EMAIL_KEY,   d.email         || '');
+          onSuccess();
+        } else {
+          setError(d.message || 'بيانات غير صحيحة');
+        }
+      })
       .catch(() => setError('تعذر الاتصال بالخادم'))
       .finally(() => setLoading(false));
   };
@@ -2050,21 +2798,47 @@ const Login = ({ onSuccess }) => {
 
 // ── Root ───────────────────────────────────────────────────────────
 export default function AdminApp() {
-  const [auth, setAuth] = useState(false);
-  if (!auth) return <Login onSuccess={() => setAuth(true)} />;
+  const [auth,        setAuth]        = useState(() => hasValidAdminSession());
+  const [currentUser, setCurrentUser] = useState(() => hasValidAdminSession() ? getStoredUser() : null);
+
+  useEffect(() => {
+    if (!auth) return;
+    if (!hasValidAdminSession()) {
+      clearSession();
+      setAuth(false);
+      setCurrentUser(null);
+    }
+  }, [auth]);
+
+  const handleLogout = () => {
+    clearSession();
+    setAuth(false);
+    setCurrentUser(null);
+  };
+
+  const handleLoginSuccess = () => {
+    setCurrentUser(getStoredUser());
+    setAuth(true);
+  };
+
+  if (!auth) return <Login onSuccess={handleLoginSuccess} />;
+
   return (
-    <AdminLayout onLogout={() => setAuth(false)}>
-      <Routes>
-        <Route path="/"          element={<Overview />} />
-        <Route path="/requests"  element={<Requests />} />
-        <Route path="/pipeline"  element={<Pipeline />} />
-        <Route path="/calendar"  element={<Calendar />} />
-        <Route path="/clients"   element={<Clients />} />
-        <Route path="/loyalty"   element={<Loyalty />} />
-        <Route path="/reports"   element={<Reports />} />
-        <Route path="/settings"  element={<Settings />} />
-        <Route path="*"          element={<div className="text-gray-300 text-center py-20 text-sm">الصفحة غير موجودة</div>} />
-      </Routes>
-    </AdminLayout>
+    <UserContext.Provider value={currentUser}>
+      <AdminLayout onLogout={handleLogout}>
+        <Routes>
+          <Route path="/"          element={<Overview />} />
+          <Route path="/requests"  element={<Requests />} />
+          <Route path="/pipeline"  element={<Pipeline />} />
+          <Route path="/calendar"  element={<Calendar />} />
+          <Route path="/clients"   element={<Clients />} />
+          <Route path="/loyalty"    element={<Loyalty />} />
+          <Route path="/catalogue"  element={<Catalogue />} />
+          <Route path="/reports"    element={<Reports />} />
+          <Route path="/settings"   element={<Settings />} />
+          <Route path="*"          element={<div className="text-gray-300 text-center py-20 text-sm">الصفحة غير موجودة</div>} />
+        </Routes>
+      </AdminLayout>
+    </UserContext.Provider>
   );
 }

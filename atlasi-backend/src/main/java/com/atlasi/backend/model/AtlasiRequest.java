@@ -22,9 +22,15 @@ public class AtlasiRequest {
     private String fixationType; // Murale / Sur poteaux
     private String fabricColor;
     private String address; // Added to store map location or text address
+    private Double latitude; // Location linked to this specific order
+    private Double longitude; // Location linked to this specific order
+    private String mapUrl; // Optional maps link for this order
     
     private LocalDateTime requestDate;
     private String status; // En attente, Confirmée, Annulée, Visite planifiée
+
+    private Double estimatedPrice; // Prix estimé (après remise fidélité si applicable)
+    private String adminNotes;     // Notes internes Admin (non visibles par le client)
     
     @PrePersist
     protected void onCreate() {
