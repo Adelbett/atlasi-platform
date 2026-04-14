@@ -27,7 +27,8 @@ public class LoyaltyController {
     private AtlasiRequestRepository requestRepository;
 
     // ── Constantes de paliers ─────────────────────────────────────────
-    private static final double DISCOUNT_SILVER   = 0.05;  // 5%  — commandes 2–4
+    private static final double DISCOUNT_SILVER   = 0.05;  // 5%  — commandes 2–3
+    private static final double DISCOUNT_GOLD     = 0.10;  // 10% — commande 4
     private static final double DISCOUNT_PLATINUM = 0.50;  // 50% — commande 5+
 
     /** Renvoie true si le statut correspond à une commande annulée */
@@ -69,8 +70,14 @@ public class LoyaltyController {
             result.put("discountRate",    DISCOUNT_PLATINUM);
             result.put("discountPercent", "50%");
             result.put("tier",            "بلاتيني");
-            result.put("tierIcon",        "💎");
+            result.put("tierIcon",        "🏆");
             result.put("message",         "طلبك الخامس — خصم استثنائي 50% (نصف السعر)!");
+        } else if (nextOrderNumber == 4) {
+            result.put("discountRate",    DISCOUNT_GOLD);
+            result.put("discountPercent", "10%");
+            result.put("tier",            "ذهبي");
+            result.put("tierIcon",        "🥉");
+            result.put("message",         "طلبك الرابع — خصم 10%");
         } else if (nextOrderNumber >= 2) {
             result.put("discountRate",    DISCOUNT_SILVER);
             result.put("discountPercent", "5%");
@@ -126,6 +133,10 @@ public class LoyaltyController {
                 client.put("tier",            "بلاتيني");
                 client.put("discountRate",    DISCOUNT_PLATINUM);
                 client.put("discountPercent", "50%");
+            } else if (validCount >= 4) {
+                client.put("tier",            "ذهبي");
+                client.put("discountRate",    DISCOUNT_GOLD);
+                client.put("discountPercent", "10%");
             } else if (validCount >= 2) {
                 client.put("tier",            "فضي");
                 client.put("discountRate",    DISCOUNT_SILVER);
@@ -164,6 +175,7 @@ public class LoyaltyController {
     private String getNextOrderDiscount(int validOrderCount) {
         int next = validOrderCount + 1;
         if (next >= 5) return "50%";
+        if (next == 4) return "10%";
         if (next >= 2) return "5%";
         return "—";
     }

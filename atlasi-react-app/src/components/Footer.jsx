@@ -22,7 +22,11 @@ const Footer = () => {
             <h5 className="font-bold footer-title text-lg">تواصل معنا</h5>
             <ul className="flex flex-col gap-3 list-none footer-links">
               <li className="text-sm opacity-60">الدمام، المملكة العربية السعودية</li>
-              <li className="text-sm opacity-60" dir="ltr">+966 54 810 5757</li>
+              <li className="text-sm opacity-60" dir="ltr">
+                <a href="https://wa.me/966504824968" target="_blank" rel="noreferrer" className="hover:opacity-100 transition-opacity">
+                  0504824968
+                </a>
+              </li>
               <li className="text-sm opacity-60">info@atlasi.sa</li>
             </ul>
           </div>

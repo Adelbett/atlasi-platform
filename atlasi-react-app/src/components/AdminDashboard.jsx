@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Routes, Route, Link, useLocation, useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ResponsiveContainer,
@@ -88,6 +89,66 @@ const normalizeAppointment = (a) => ({
   status: a?.status || 'قادمة',
   note: a?.note ?? a?.notes ?? '',
 });
+
+const getRequestAddress = (order) => {
+  const textAddress = order?.address || order?.location || '';
+  if (textAddress && String(textAddress).trim()) return String(textAddress).trim();
+
+  const mapUrl = order?.mapUrl || order?.mapURL || order?.mapsUrl || '';
+  if (mapUrl && String(mapUrl).trim()) return String(mapUrl).trim();
+
+  const lat = order?.latitude;
+  const lng = order?.longitude;
+  if (lat != null && lng != null && `${lat}` !== '' && `${lng}` !== '') {
+    return `${lat}, ${lng}`;
+  }
+
+  return '—';
+};
+
+const getRequestEstimatedPrice = (order) => {
+  const raw = order?.estimatedPrice ?? order?.estimated_price ?? order?.expectedPrice ?? order?.price;
+  if (raw == null || String(raw).trim() === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const normalizeRequest = (request) => {
+  const normalized = request || {};
+  const clientName = normalized.clientName || normalized.customerName || '';
+  const clientPhone = normalized.clientPhone || normalized.phone || normalized.customerPhone || '';
+  const designType = normalized.designType || normalized.design || '';
+  const sizeInfo = normalized.sizeInfo || normalized.size || '';
+  const fixationType = normalized.fixationType || normalized.fixation || '';
+  const fabricColor = normalized.fabricColor || normalized.color || '';
+  const mapUrl = normalized.mapUrl || normalized.mapURL || normalized.mapsUrl || '';
+  const latitude = normalized.latitude ?? normalized.lat ?? null;
+  const longitude = normalized.longitude ?? normalized.lng ?? null;
+
+  return {
+    ...normalized,
+    clientName,
+    clientPhone,
+    phone: clientPhone,
+    designType,
+    sizeInfo,
+    size: normalized.size || sizeInfo,
+    fixationType,
+    fixation: normalized.fixation || fixationType,
+    fabricColor,
+    color: normalized.color || fabricColor,
+    mapUrl,
+    latitude,
+    longitude,
+    address: getRequestAddress({ ...normalized, mapUrl, latitude, longitude }),
+    estimatedPrice: getRequestEstimatedPrice(normalized),
+  };
+};
+
+const normalizeRequestList = (list) =>
+  (Array.isArray(list) ? list : []).map(normalizeRequest);
+const appointmentColorCfg = (appt) =>
+  VISIT_COLORS[appt?.status] || VISIT_COLORS[appt?.appointmentType] || VISIT_COLORS['زيارة ميدانية'];
 
 const useDebouncedValue = (value, delay = 300) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
@@ -419,12 +480,12 @@ const Overview = () => {
       apiFetch('/admin/requests').catch(() => MOCK_REQUESTS),
       apiFetch('/admin/appointments').catch(() => MOCK_APPOINTMENTS),
     ]).then(([reqData, apptData]) => {
-      setRequests(Array.isArray(reqData) ? reqData : MOCK_REQUESTS);
+      setRequests(normalizeRequestList(Array.isArray(reqData) ? reqData : MOCK_REQUESTS));
       setAppointments(Array.isArray(apptData) ? apptData.map(normalizeAppointment) : MOCK_APPOINTMENTS.map(normalizeAppointment));
       setLastUpdated(new Date());
       setLoading(false);
     }).catch(() => {
-      setRequests(MOCK_REQUESTS);
+      setRequests(normalizeRequestList(MOCK_REQUESTS));
       setAppointments(MOCK_APPOINTMENTS.map(normalizeAppointment));
       setLastUpdated(new Date());
       setLoading(false);
@@ -443,7 +504,7 @@ const Overview = () => {
 
   // ── KPI 1: Revenus Estimés ───────────────────────────────────────
   const estimatedRevenue = useMemo(() =>
-    activeRequests.reduce((s, r) => s + (Number(r.estimatedPrice) || 0), 0), [activeRequests]);
+    activeRequests.reduce((s, r) => s + (getRequestEstimatedPrice(r) || 0), 0), [activeRequests]);
 
   // Enrich each request once: resolve model code, product, color flag.
   // Downstream KPIs read from this instead of re-running getModelCodeFromRequest per computation.
@@ -457,9 +518,10 @@ const Overview = () => {
 
   const estimatedProfit = useMemo(() =>
     enrichedRequests.reduce((s, r) => {
-      if (!r.product || !r.estimatedPrice) return s;
+      const price = getRequestEstimatedPrice(r);
+      if (!r.product || price == null) return s;
       const cost = r.isNoir ? r.product.costNoir : r.product.costBeige;
-      return s + (Number(r.estimatedPrice) - cost);
+      return s + (price - cost);
     }, 0), [enrichedRequests]);
 
   // clientOrderCounts: shared between loyaltyForce and loyaltyFunnelData.
@@ -479,20 +541,21 @@ const Overview = () => {
 
   const lowMarginModels = useMemo(() =>
     Object.entries(PRODUCT_CATALOG).filter(([, p]) =>
-      ((p.sellMin - p.costBeige) / p.sellMin) * 100 < 10
+      ((p.sellMin - p.costNoir) / p.sellMin) * 100 < 10
     ), []);
 
   const modelMarginData = useMemo(() =>
     Object.entries(PRODUCT_CATALOG).map(([code, p]) => {
-      const m = Math.round(((p.sellMin - p.costBeige) / p.sellMin) * 100);
+      const m = Math.round(((p.sellMin - p.costNoir) / p.sellMin) * 100);
       return { code, margin: m, fill: m < 10 ? '#dc2626' : m < 25 ? '#d97706' : '#059669' };
     }).sort((a, b) => b.margin - a.margin), []);
 
   const profitByDesign = useMemo(() => {
     const acc = {};
     enrichedRequests.forEach(r => {
-      if (!r.product || !r.estimatedPrice) return;
-      const profit = Number(r.estimatedPrice) - (r.isNoir ? r.product.costNoir : r.product.costBeige);
+      const price = getRequestEstimatedPrice(r);
+      if (!r.product || price == null) return;
+      const profit = price - (r.isNoir ? r.product.costNoir : r.product.costBeige);
       acc[r.product.design] = (acc[r.product.design] || 0) + profit;
     });
     return Object.entries(acc).filter(([, v]) => v !== 0).map(([name, value]) => ({ name, value: Math.round(value) }));
@@ -517,6 +580,23 @@ const Overview = () => {
     { name: '💎 بلاتيني — 5+ طلبات',  count: clientOrderCounts.filter(n => n >= 5).length,              color: '#B89B5E' },
   ], [clientOrderCounts]);
 
+  const topClientsByAmount = useMemo(() => {
+    const totals = {};
+    activeRequests.forEach((r) => {
+      const key = (r.phone || r.clientPhone || r.customerPhone || r.clientName || r.customerName || `id-${r.id}`).trim();
+      const clientName = r.clientName || r.customerName || key;
+      if (!totals[key]) totals[key] = { key, name: clientName, amount: 0, orders: 0 };
+      totals[key].orders += 1;
+      totals[key].amount += getRequestEstimatedPrice(r) || 0;
+    });
+    return Object.values(totals)
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 6);
+  }, [activeRequests]);
+
+  const maxTopClientAmount = useMemo(() =>
+    Math.max(...topClientsByAmount.map(c => c.amount), 0), [topClientsByAmount]);
+
   // statusData intentionally includes cancelled orders to show full status distribution.
   const statusData = useMemo(() => Object.entries(
     requests.reduce((acc, r) => {
@@ -533,7 +613,7 @@ const Overview = () => {
       if (r.modelCode) ordersByCode[r.modelCode] = (ordersByCode[r.modelCode] || 0) + 1;
     });
     return Object.entries(PRODUCT_CATALOG).map(([code, p]) => {
-      const marginPct = Math.round(((p.sellMin - p.costBeige) / p.sellMin) * 100);
+      const marginPct = Math.round(((p.sellMin - p.costNoir) / p.sellMin) * 100);
       const orders = ordersByCode[code] || 0;
       const status = marginPct < 0 ? 'خسارة' : marginPct < 10 ? 'هامش منخفض' : 'جيد';
       return { code, design: p.design, size: p.size, fixation: p.fixation, orders, marginPct, status, lowMargin: marginPct < 10 };
@@ -578,6 +658,40 @@ const Overview = () => {
             {k.sub && <p className="text-[10px] text-gray-400 mt-0.5 truncate">{k.sub}</p>}
           </div>
         ))}
+      </div>
+
+      {/* Top clients by estimated amount */}
+      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">قيمة متوقعة لكل عميل</h3>
+            <p className="text-[11px] text-gray-400 mt-0.5">مرتبة حسب مجموع السعر المتوقع للطلبات النشطة</p>
+          </div>
+          <span className="text-[10px] text-gray-500 bg-gray-50 border border-gray-100 px-2 py-1 rounded-full">
+            أعلى {formatNumber(topClientsByAmount.length)} عملاء
+          </span>
+        </div>
+        {topClientsByAmount.length > 0 ? (
+          <div className="space-y-3">
+            {topClientsByAmount.map((c) => {
+              const pct = maxTopClientAmount > 0 ? Math.max(4, Math.round((c.amount / maxTopClientAmount) * 100)) : 0;
+              return (
+                <div key={c.key} className="rounded-lg border border-gray-100 p-3 bg-gray-50/50">
+                  <div className="flex items-center justify-between mb-2 gap-3">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
+                    <p className="text-xs font-bold text-emerald-700 whitespace-nowrap">{formatCurrency(c.amount)}</p>
+                  </div>
+                  <div className="h-2.5 bg-white border border-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-600 transition-all duration-700" style={{ width: `${pct}%` }} />
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">{formatNumber(c.orders)} طلب نشط</p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-sm text-gray-400 py-4 text-center">لا توجد بيانات أسعار متوقعة حالياً</div>
+        )}
       </div>
 
       {/* Row 1: Model Margins + Profit by Design */}
@@ -714,37 +828,6 @@ const Overview = () => {
         </div>
       </div>
 
-      {/* Geographic Summary */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <span className="material-symbols-outlined text-gray-400 text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
-          <h3 className="text-sm font-bold text-gray-900">خريطة التوزيع الجغرافي للطلبات</h3>
-        </div>
-        {requests.filter(r => r.latitude && r.longitude).length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {requests.filter(r => r.latitude && r.longitude).slice(0, 9).map(r => (
-              <div key={r.id} className="flex items-center gap-2.5 p-3 bg-gray-50 rounded-lg border border-gray-100">
-                <span className="material-symbols-outlined text-red-500 text-[16px] flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-gray-800 truncate">{r.clientName}</p>
-                  <p className="text-[10px] text-gray-400">{r.latitude?.toFixed(4)}, {r.longitude?.toFixed(4)}</p>
-                </div>
-                <a href={`https://maps.google.com/?q=${r.latitude},${r.longitude}`} target="_blank" rel="noreferrer"
-                  className="text-blue-500 hover:text-blue-700 flex-shrink-0">
-                  <span className="material-symbols-outlined text-[14px]">open_in_new</span>
-                </a>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-10 text-gray-300">
-            <span className="material-symbols-outlined text-5xl block mb-3">map</span>
-            <p className="text-sm font-medium text-gray-400">لا توجد إحداثيات GPS مسجلة بعد</p>
-            <p className="text-[11px] mt-1">ستظهر نقاط الحرارة الجغرافية بعد تسجيل مواقع العملاء في الطلبات</p>
-          </div>
-        )}
-      </div>
-
       {/* Top Models Table */}
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
@@ -800,6 +883,9 @@ const Overview = () => {
           </table>
         </div>
       </div>
+
+      {/* ── خريطة التوزيع الجغرافي للطلبات (الخريطة فقط) ── */}
+      <GeoMapSection requests={requests} />
     </div>
   );
 };
@@ -818,8 +904,8 @@ const Requests = () => {
   const load = useCallback(() => {
     setLoading(true);
     apiFetch('/admin/requests')
-      .then(d => { setRequests(d); setLoading(false); })
-      .catch(() => { setRequests(MOCK_REQUESTS); setLoading(false); });
+      .then(d => { setRequests(normalizeRequestList(d)); setLoading(false); })
+      .catch(() => { setRequests(normalizeRequestList(MOCK_REQUESTS)); setLoading(false); });
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -955,7 +1041,7 @@ const Requests = () => {
                   ['الاسم', selected.clientName], ['الجوال', selected.phone],
                   ['التصميم', selected.designType], ['الحجم', selected.size],
                   ['التثبيت', selected.fixation], ['اللون', selected.fabricColor],
-                  ['السعر', selected.estimatedPrice ? formatCurrency(selected.estimatedPrice) : '—'],
+                  ['السعر', getRequestEstimatedPrice(selected) != null ? formatCurrency(getRequestEstimatedPrice(selected)) : '—'],
                 ].map(([k, v]) => (
                   <div key={k}>
                     <p className="text-[10px] text-gray-400 uppercase tracking-wide mb-1">{k}</p>
@@ -1000,7 +1086,7 @@ const PIPELINE_COLS = [
 const Pipeline = () => {
   const [requests, setRequests] = useState([]);
   useEffect(() => {
-    apiFetch('/admin/requests').then(setRequests).catch(() => setRequests(MOCK_REQUESTS));
+    apiFetch('/admin/requests').then(d => setRequests(normalizeRequestList(d))).catch(() => setRequests(normalizeRequestList(MOCK_REQUESTS)));
   }, []);
   const colItems = (id) => requests.filter(r =>
     normalizeStatus(r.status) === id || (id === 'new' && ['new','pending'].includes(normalizeStatus(r.status)))
@@ -1052,14 +1138,17 @@ const timeToMins = (t) => {
 };
 
 const Calendar = () => {
+  const currentUser = React.useContext(UserContext);
   const [appointments, setAppointments] = useState([]);
   const [requests, setRequests]         = useState([]);
+  const [staff, setStaff]               = useState([]);
   const [view, setView]                 = useState('يوم');
   const [showForm, setShowForm]         = useState(false);
   const [selectedAppt, setSelectedAppt] = useState(null);
   const [form, setForm]                 = useState({ clientName: '', clientPhone: '', agentName: 'سلطان الغامدي', appointmentType: 'زيارة ميدانية', date: TODAY, startTime: '09:00', duration: 60, note: '' });
   const [clientSearch, setClientSearch] = useState('');
   const [saving, setSaving]             = useState(false);
+  const [statusActionBusy, setStatusActionBusy] = useState(false);
   const [currentDate, setCurrentDate]   = useState(new Date());
   const debouncedClientSearch           = useDebouncedValue(clientSearch, 350);
 
@@ -1068,10 +1157,16 @@ const Calendar = () => {
 
   // Dynamic agents: derive from loaded appointments + known defaults
   const AGENTS = useMemo(() => {
+    const staffNames = staff
+      .map((s) => s.fullName || '')
+      .map((name) => name.trim())
+      .filter(Boolean);
+    if (staffNames.length > 0) return Array.from(new Set(staffNames));
+
     const names = new Set(['سلطان الغامدي', 'فهد العتيبي']);
     appointments.forEach(a => { if (a.agentName) names.add(a.agentName); });
     return Array.from(names);
-  }, [appointments]);
+  }, [staff, appointments]);
   const GRID_START = 360; // 06:00 in minutes
   const PX_PER_MIN = 1.2; // pixels per minute
   const localToday = toLocalDateStr(new Date());
@@ -1080,11 +1175,20 @@ const Calendar = () => {
     Promise.all([
       apiFetch('/admin/appointments').catch(() => MOCK_APPOINTMENTS),
       apiFetch('/admin/requests').catch(() => MOCK_REQUESTS),
-    ]).then(([apptData, reqData]) => {
+      apiFetch('/auth/staff', { headers: { 'X-Admin-Id': String(currentUser?.id || '') } }).catch(() => []),
+    ]).then(([apptData, reqData, staffData]) => {
       setAppointments(Array.isArray(apptData) ? apptData.map(normalizeAppointment) : MOCK_APPOINTMENTS.map(normalizeAppointment));
-      setRequests(Array.isArray(reqData) ? reqData : MOCK_REQUESTS);
+      setRequests(normalizeRequestList(Array.isArray(reqData) ? reqData : MOCK_REQUESTS));
+      setStaff(Array.isArray(staffData) ? staffData : []);
     });
-  }, []);
+  }, [currentUser?.id]);
+
+  useEffect(() => {
+    if (!AGENTS.length) return;
+    if (!form.agentName || !AGENTS.includes(form.agentName)) {
+      setForm((p) => ({ ...p, agentName: AGENTS[0] }));
+    }
+  }, [AGENTS, form.agentName]);
 
   useEffect(() => {
     const raw = localStorage.getItem('atlasi_pending_visit');
@@ -1200,7 +1304,7 @@ const Calendar = () => {
       .sort((a, b) => new Date(b.requestDate || 0) - new Date(a.requestDate || 0))[0];
 
     const newAppt = {
-      id: Date.now(), agentName: payload.agentName, appointmentType: payload.appointmentType,
+      agentName: payload.agentName, appointmentType: payload.appointmentType,
       appointmentDate: appointmentDateIso, startTime: payload.startTime, duration: Number(payload.duration),
       status: 'قادمة', request: selectedReq?.id ? { id: selectedReq.id } : null, location: '', note: payload.note
     };
@@ -1224,20 +1328,22 @@ const Calendar = () => {
 
     apiFetch('/admin/appointments', { method: 'POST', body: JSON.stringify(newAppt) })
       .then(d => {
-        // Add the saved appointment optimistically — do NOT overwrite with a
-        // secondary GET that may return before the DB commits the new record.
+        if (!d?.id) {
+          throw new Error('فشل حفظ الزيارة في قاعدة البيانات');
+        }
         setAppointments(p => [...p, buildAppt(d)]);
         resetForm();
       })
-      .catch(() => {
-        // Backend unreachable: add locally so the user sees the new entry
-        setAppointments(p => [...p, buildAppt(null)]);
-        resetForm();
+      .catch((e) => {
+        setSaving(false);
+        window.alert(e?.message || 'تعذر حفظ الزيارة في قاعدة البيانات');
       });
   };
 
-  const updateAppointmentStatus = (appt, action, nextStatus) => {
+  const updateAppointmentStatus = async (appt, action, nextStatus) => {
     if (!appt) return;
+    if (statusActionBusy) return;
+    setStatusActionBusy(true);
 
     const applyLocal = (payload) => {
       const normalized = normalizeAppointment(payload || { ...appt, status: nextStatus });
@@ -1247,12 +1353,28 @@ const Calendar = () => {
 
     if (!appt.id || Number(appt.id) > 99999999999) {
       applyLocal();
+      setStatusActionBusy(false);
       return;
     }
 
-    apiFetch(`/admin/appointments/${appt.id}/${action}`, { method: 'PUT' })
-      .then((updated) => applyLocal(updated))
-      .catch(() => applyLocal());
+    try {
+      const updated = await apiFetch(`/admin/appointments/${appt.id}/${action}`, { method: 'PUT' });
+      applyLocal(updated);
+
+      const refreshed = await apiFetch('/admin/appointments');
+      const normalizedList = (Array.isArray(refreshed) ? refreshed : []).map(normalizeAppointment);
+      setAppointments(normalizedList);
+      setSelectedAppt((prev) => {
+        if (!prev) return prev;
+        const latest = normalizedList.find((a) => a.id === prev.id);
+        return latest || prev;
+      });
+    } catch (e) {
+      applyLocal();
+      window.alert(e?.message || 'تعذر تحديث حالة الزيارة');
+    } finally {
+      setStatusActionBusy(false);
+    }
   };
 
   const now = new Date();
@@ -1317,7 +1439,7 @@ const Calendar = () => {
                       const startMins = timeToMins(appt.startTime || '08:00');
                       const top = (startMins - GRID_START) * PX_PER_MIN;
                       const height = Math.max((appt.duration || 60) * PX_PER_MIN, 28);
-                      const cfg = VISIT_COLORS[appt.status === 'مكتملة' ? 'مكتملة' : appt.appointmentType] || VISIT_COLORS['زيارة ميدانية'];
+                      const cfg = appointmentColorCfg(appt);
                       return (
                         <div key={appt.id} onClick={() => setSelectedAppt(appt)}
                           className="absolute left-1 right-1 rounded-md p-1.5 cursor-pointer hover:shadow-md transition-shadow overflow-hidden border"
@@ -1358,7 +1480,7 @@ const Calendar = () => {
           <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">الزيارات القادمة</h3>
           <div className="space-y-3">
             {dayAppts.filter(a => a.status === 'قادمة').sort((a, b) => a.startTime?.localeCompare(b.startTime)).map(appt => {
-              const cfg = VISIT_COLORS[appt.appointmentType] || VISIT_COLORS['زيارة ميدانية'];
+              const cfg = appointmentColorCfg(appt);
               return (
                 <div key={appt.id} onClick={() => setSelectedAppt(appt)} className="cursor-pointer hover:bg-gray-50 rounded-lg p-2 -mx-2 transition-colors">
                   <div className="flex items-start gap-2">
@@ -1534,7 +1656,7 @@ const Calendar = () => {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
               className="bg-white rounded-xl p-6 w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
               {(() => {
-                const cfg = VISIT_COLORS[selectedAppt.appointmentType] || VISIT_COLORS['زيارة ميدانية'];
+                const cfg = appointmentColorCfg(selectedAppt);
                 return (
                   <>
                     <div className="flex items-start justify-between mb-4">
@@ -1548,6 +1670,7 @@ const Calendar = () => {
                     </div>
                     <div className="space-y-2.5">
                       {[
+                        ['الحالة', selectedAppt.status || 'قادمة'],
                         ['العميل', selectedAppt.request?.clientName],
                         ['الموعد', `${selectedAppt.appointmentDate} — ${selectedAppt.startTime}`],
                         ['المدة', `${selectedAppt.duration} دقيقة`],
@@ -1564,19 +1687,22 @@ const Calendar = () => {
                     <div className="flex gap-2 mt-5">
                       <button
                         onClick={() => updateAppointmentStatus(selectedAppt, 'complete', 'مكتملة')}
-                        className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-medium rounded-lg hover:bg-green-600 hover:text-white transition-colors"
+                        disabled={statusActionBusy}
+                        className="flex-1 py-2 bg-green-50 text-green-700 text-xs font-medium rounded-lg hover:bg-green-600 hover:text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         تأكيد الإنجاز
                       </button>
                       <button
                         onClick={() => updateAppointmentStatus(selectedAppt, 'postpone', 'مرجأة')}
-                        className="flex-1 py-2 bg-amber-50 text-amber-700 text-xs font-medium rounded-lg hover:bg-amber-500 hover:text-white transition-colors"
+                        disabled={statusActionBusy}
+                        className="flex-1 py-2 bg-amber-50 text-amber-700 text-xs font-medium rounded-lg hover:bg-amber-500 hover:text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         تأجيل
                       </button>
                       <button
                         onClick={() => updateAppointmentStatus(selectedAppt, 'cancel', 'ملغاة')}
-                        className="flex-1 py-2 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-500 hover:text-white transition-colors"
+                        disabled={statusActionBusy}
+                        className="flex-1 py-2 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-500 hover:text-white transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         إلغاء
                       </button>
@@ -1705,8 +1831,9 @@ const Calendar = () => {
 // الطلب 5+   : خصم استثنائي 50% (نصف السعر)
 const LOYALTY_LEVELS = [
   { min: 0, max: 1,  label: 'جديد',    color: '#6b7280', discount: '—',   icon: '🆕', nextDiscount: '5%'  },
-  { min: 2, max: 4,  label: 'فضي',     color: '#64748b', discount: '5%',  icon: '🥈', nextDiscount: '5%'  },
-  { min: 5, max: 99, label: 'بلاتيني', color: '#B89B5E', discount: '50%', icon: '💎', nextDiscount: '50%' },
+  { min: 2, max: 3,  label: 'فضي',     color: '#64748b', discount: '5%',  icon: '🥈', nextDiscount: '10%' },
+  { min: 4, max: 4,  label: 'ذهبي',    color: '#b8860b', discount: '10%', icon: '🥉', nextDiscount: '50%' },
+  { min: 5, max: 99, label: 'بلاتيني', color: '#B89B5E', discount: '50%', icon: '🏆', nextDiscount: '50%' },
 ];
 const loyaltyOf = (n) => LOYALTY_LEVELS.find(l => n >= l.min && n <= l.max) || LOYALTY_LEVELS[0];
 
@@ -1714,6 +1841,7 @@ const loyaltyOf = (n) => LOYALTY_LEVELS.find(l => n >= l.min && n <= l.max) || L
 const getNextOrderDiscount = (validOrderCount) => {
   const next = validOrderCount + 1;
   if (next >= 5) return '50%';
+  if (next === 4) return '10%';
   if (next >= 2) return '5%';
   return '—';
 };
@@ -1729,7 +1857,7 @@ const Clients = () => {
   const [showVisitMenu, setShowVisitMenu] = useState(false);
 
   useEffect(() => {
-    apiFetch('/admin/requests').then(setRequests).catch(() => setRequests(MOCK_REQUESTS));
+    apiFetch('/admin/requests').then(d => setRequests(normalizeRequestList(d))).catch(() => setRequests(normalizeRequestList(MOCK_REQUESTS)));
   }, []);
 
   const clientMap = requests.reduce((acc, r) => {
@@ -1753,7 +1881,7 @@ const Clients = () => {
   const sel = selectedKey ? clientMap[selectedKey] : null;
   const selCompleted = sel ? sel.orders.filter(o => normalizeStatus(o.status) !== 'cancelled').length : 0;
   const selLoyalty = sel ? loyaltyOf(selCompleted) : null;
-  const selRevenue = sel ? sel.orders.reduce((s, o) => s + (Number(o.estimatedPrice) || 0), 0) : 0;
+  const selRevenue = sel ? sel.orders.reduce((s, o) => s + (getRequestEstimatedPrice(o) || 0), 0) : 0;
   const selAppts = sel ? MOCK_APPOINTMENTS.filter(a => a.request?.clientName === sel.name) : [];
   const selLastOrder = sel ? [...sel.orders].sort((a, b) => new Date(b.requestDate || 0) - new Date(a.requestDate || 0))[0] : null;
   const selWizardData = selLastOrder ? {
@@ -1761,7 +1889,7 @@ const Clients = () => {
     size: toArabicSize(selLastOrder.sizeInfo || selLastOrder.size),
     fixation: toArabicFixation(selLastOrder.fixationType || selLastOrder.fixation),
     color: toArabicColor(selLastOrder.fabricColor || selLastOrder.color),
-    address: selLastOrder.address || '—',
+    address: getRequestAddress(selLastOrder),
     requestNo: selLastOrder.confirmationNumber || `#${selLastOrder.id}`,
   } : null;
 
@@ -1971,11 +2099,11 @@ const Clients = () => {
                               </div>
                               <div className="bg-white rounded-lg p-3 border border-blue-100">
                                 <p className="text-[10px] text-gray-500 mb-1">السعر المتوقع</p>
-                                <p className="text-sm font-semibold text-gray-800">{o.estimatedPrice ? formatCurrency(o.estimatedPrice) : '—'}</p>
+                                <p className="text-sm font-semibold text-gray-800">{getRequestEstimatedPrice(o) != null ? formatCurrency(getRequestEstimatedPrice(o)) : '—'}</p>
                               </div>
                               <div className="bg-white rounded-lg p-3 border border-blue-100">
                                 <p className="text-[10px] text-gray-500 mb-1">العنوان</p>
-                                <p className="text-xs font-medium text-gray-700 truncate">{o.address || '—'}</p>
+                                <p className="text-xs font-medium text-gray-700 truncate">{getRequestAddress(o)}</p>
                               </div>
                             </div>
                             {o.description && (
@@ -2010,7 +2138,7 @@ const Clients = () => {
                           <div><span className="text-gray-400 block">الحجم</span><span className="font-medium">{toArabicSize(o.sizeInfo || o.size)}</span></div>
                           <div><span className="text-gray-400 block">اللون</span><span className="font-medium">{toArabicColor(o.fabricColor || o.color)}</span></div>
                           <div><span className="text-gray-400 block">التثبيت</span><span className="font-medium">{toArabicFixation(o.fixationType || o.fixation)}</span></div>
-                          <div><span className="text-gray-400 block">السعر المتوقع</span><span className="font-medium text-emerald-700">{o.estimatedPrice ? formatCurrency(o.estimatedPrice) : '—'}</span></div>
+                          <div><span className="text-gray-400 block">السعر المتوقع</span><span className="font-medium text-emerald-700">{getRequestEstimatedPrice(o) != null ? formatCurrency(getRequestEstimatedPrice(o)) : '—'}</span></div>
                         </div>
                       </div>
                     ))}
@@ -2095,8 +2223,9 @@ const Clients = () => {
                       <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">مسار برنامج الولاء</h4>
                       <div className="space-y-2">
                         {[
-                          { orders: '1', label: 'الطلب الأول', discount: '—', note: 'لا خصم', color: '#6b7280' },
-                          { orders: '2–4', label: 'الطلبات 2 إلى 4', discount: '5%', note: 'خصم تلقائي', color: '#64748b' },
+                          { orders: '1',   label: 'الطلب الأول',       discount: '—',   note: 'لا خصم',       color: '#6b7280' },
+                          { orders: '2–3', label: 'الطلبات 2 و 3',     discount: '5%',  note: 'خصم تلقائي',   color: '#64748b' },
+                          { orders: '4',   label: 'الطلب الرابع',       discount: '10%', note: 'خصم ذهبي',     color: '#b8860b' },
                           { orders: '5+', label: 'الطلب الخامس', discount: '50%', note: 'نصف السعر 🎉', color: '#B89B5E' },
                         ].map((tier, i) => {
                           const isActive = (tier.orders === '1' && selCompleted <= 1) ||
@@ -2198,7 +2327,7 @@ const Loyalty = () => {
   const [requests, setRequests] = useState([]);
   const [selectedLevel, setSelectedLevel] = useState('الكل');
   useEffect(() => {
-    apiFetch('/admin/requests').then(setRequests).catch(() => setRequests(MOCK_REQUESTS));
+    apiFetch('/admin/requests').then(d => setRequests(normalizeRequestList(d))).catch(() => setRequests(normalizeRequestList(MOCK_REQUESTS)));
   }, []);
   const clientMap = requests.reduce((acc, r) => {
     const k = r.phone || r.clientName;
@@ -2277,6 +2406,7 @@ const Loyalty = () => {
                   <td className="px-5 py-3">
                     <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                       getNextOrderDiscount(c.done) === '50%' ? 'bg-amber-100 text-amber-700' :
+                      getNextOrderDiscount(c.done) === '10%' ? 'bg-yellow-100 text-yellow-700' :
                       getNextOrderDiscount(c.done) === '5%'  ? 'bg-blue-50 text-blue-600'   :
                       'text-gray-300'
                     }`}>
@@ -2302,10 +2432,10 @@ const Loyalty = () => {
 const Reports = () => {
   const [requests, setRequests] = useState([]);
   useEffect(() => {
-    apiFetch('/admin/requests').then(setRequests).catch(() => setRequests(MOCK_REQUESTS));
+    apiFetch('/admin/requests').then(d => setRequests(normalizeRequestList(d))).catch(() => setRequests(normalizeRequestList(MOCK_REQUESTS)));
   }, []);
   const byStatus = Object.entries(requests.reduce((a, r) => { const k = normalizeStatus(r.status); a[k] = (a[k] || 0) + 1; return a; }, {}));
-  const totalRevenue = requests.filter(r => normalizeStatus(r.status) === 'installed').reduce((s, r) => s + (Number(r.estimatedPrice) || 0), 0);
+  const totalRevenue = requests.filter(r => normalizeStatus(r.status) === 'installed').reduce((s, r) => s + (getRequestEstimatedPrice(r) || 0), 0);
   const maxCount = Math.max(...byStatus.map(([, v]) => v), 1);
   return (
     <div className="space-y-6">
@@ -2648,7 +2778,7 @@ const CATALOGUE_PRODUCTS = [
 const Catalogue = () => {
   const [requests, setRequests] = useState([]);
   useEffect(() => {
-    apiFetch('/admin/requests').then(setRequests).catch(() => setRequests(MOCK_REQUESTS));
+    apiFetch('/admin/requests').then(d => setRequests(normalizeRequestList(d))).catch(() => setRequests(normalizeRequestList(MOCK_REQUESTS)));
   }, []);
 
   // عدد الطلبات لكل موديل
@@ -2695,17 +2825,17 @@ const Catalogue = () => {
               <th className="px-4 py-3">التصميم</th>
               <th className="px-4 py-3">الحجم</th>
               <th className="px-4 py-3">التثبيت</th>
-              <th className="px-4 py-3">تكلفة بيج</th>
-              <th className="px-4 py-3">تكلفة أسود</th>
+              <th className="px-4 py-3">الأعلى جودة الضمان 38 شهر</th>
+              <th className="px-4 py-3">الأقل جودة الضمان سنة</th>
               <th className="px-4 py-3">أدنى سعر بيع</th>
               <th className="px-4 py-3">أعلى سعر بيع</th>
-              <th className="px-4 py-3">هامش</th>
+              <th className="px-4 py-3">هامش - Version noire</th>
               <th className="px-4 py-3">طلبات</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
             {CATALOGUE_PRODUCTS.map((p, i) => {
-              const marginPct = Math.round(((p.sellMin - p.costBeige) / p.sellMin) * 100);
+              const marginPct = Math.round(((p.sellMin - p.costNoir) / p.sellMin) * 100);
               const orderCount = ordersByCode[p.code] || 0;
               return (
                 <tr key={i} className="hover:bg-gray-50 transition-colors">
@@ -2734,6 +2864,321 @@ const Catalogue = () => {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+};
+
+// ── GeoAnalytics ──────────────────────────────────────────────────
+const GEO_GOLD   = '#D4AF37';
+const GEO_GOLD2  = '#f0d060';
+const GEO_DARK   = '#0d0d0f';
+const GEO_PANEL  = 'rgba(18,16,14,0.82)';
+const GEO_BORDER = 'rgba(212,175,55,0.25)';
+
+// Haversine distance in km between two lat/lng points
+const haversine = (lat1, lng1, lat2, lng2) => {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+};
+
+// Cluster geo-tagged requests into zones (~2km grid cells)
+const GRID = 0.018;
+const clusterRequests = (reqs) => {
+  const cells = {};
+  reqs.forEach(r => {
+    if (!r.latitude || !r.longitude) return;
+    const key = `${Math.round(r.latitude / GRID) * GRID},${Math.round(r.longitude / GRID) * GRID}`;
+    if (!cells[key]) cells[key] = { count: 0, revenue: 0, lat: 0, lng: 0, reqs: [] };
+    cells[key].count++;
+    cells[key].revenue += r.estimatedPrice || 0;
+    cells[key].lat += r.latitude;
+    cells[key].lng += r.longitude;
+    cells[key].reqs.push(r);
+  });
+  return Object.values(cells).map(c => {
+    const lat = c.lat / c.count;
+    const lng = c.lng / c.count;
+    // Zone name: first segment of the address, or client name, or coordinates
+    const raw = c.reqs[0]?.address || '';
+    const name = raw.split(/[،,]/)[0].trim() || c.reqs[0]?.clientName || `${lat.toFixed(2)}°N`;
+    return { lat, lng, orders: c.count, revenue: c.revenue, name, reqs: c.reqs };
+  }).sort((a, b) => b.orders - a.orders);
+};
+
+// Embeddable section (receives requests as prop, used inside Overview)
+const GeoMapSection = ({ requests = [], loading = false }) => {
+  const [activeZone, setActiveZone] = useState(null);
+  const mapRef  = React.useRef(null);
+  const heatRef = React.useRef(null);
+
+  // ── Dynamic derived data ──────────────────────────────────────────
+  const geoReqs   = useMemo(() => requests.filter(r => r.latitude && r.longitude), [requests]);
+  const zones     = useMemo(() => clusterRequests(geoReqs), [geoReqs]);
+  const top3      = zones.slice(0, 3);
+  const maxOrders = zones.length ? zones[0].orders : 1;
+  const totalOrders = requests.length;
+  const geoTotal    = geoReqs.length;
+
+  // Centroid of all geoTagged points
+  const centroid = useMemo(() => {
+    if (!geoReqs.length) return { lat: 24.774, lng: 46.650 };
+    return { lat: geoReqs.reduce((s,r) => s + r.latitude, 0) / geoReqs.length,
+             lng: geoReqs.reduce((s,r) => s + r.longitude, 0) / geoReqs.length };
+  }, [geoReqs]);
+
+  // Average delivery radius (km from centroid)
+  const avgRadius = useMemo(() => {
+    if (!geoReqs.length) return 0;
+    const dists = geoReqs.map(r => haversine(centroid.lat, centroid.lng, r.latitude, r.longitude));
+    return Math.round(dists.reduce((s,d) => s+d, 0) / dists.length);
+  }, [geoReqs, centroid]);
+
+  // Estimated travel time (30 km/h avg urban speed)
+  const avgTravelMin = avgRadius ? Math.round((avgRadius / 30) * 60) : 0;
+
+  // AI insight generated from real data
+  const aiInsight = useMemo(() => {
+    if (!zones.length) return 'لا توجد بيانات جغرافية كافية لتوليد تحليل. أضف إحداثيات للطلبات لتفعيل هذه الميزة.';
+    const top = zones[0];
+    const topPct = Math.round((top.orders / totalOrders) * 100);
+    const suggestion = avgRadius > 20
+      ? `فرصة مقترحة: نقطة تخزين محلية قرب ${top.name} لخفض متوسط مسافة التوصيل (${avgRadius} كم) بنسبة تقديرية 15–20٪.`
+      : `التوزيع الجغرافي ممتاز — متوسط نطاق التوصيل (${avgRadius} كم) ضمن النطاق الأمثل.`;
+    return `تركّز عالٍ في منطقة ${top.name} يمثّل ${topPct}٪ من إجمالي الطلبات المُعرَّفة جغرافياً (${geoTotal} طلب). ${suggestion}`;
+  }, [zones, totalOrders, geoTotal, avgRadius]);
+
+  // Heatmap layer via Leaflet.heat
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const map = mapRef.current;
+    if (heatRef.current) { map.removeLayer(heatRef.current); heatRef.current = null; }
+    if (!geoReqs.length || !window.L?.heatLayer) return;
+    const pts = geoReqs.map(r => [r.latitude, r.longitude, 0.7]);
+    heatRef.current = window.L.heatLayer(pts, {
+      radius: 50, blur: 40, maxZoom: 13,
+      gradient: { 0: 'transparent', 0.4: '#7a5c00', 0.7: '#c49b00', 1: '#D4AF37' },
+    }).addTo(map);
+  }, [geoReqs]);
+
+  const styleTag = `
+    @keyframes geo-pulse { 0%{transform:scale(1);opacity:.8} 100%{transform:scale(2.5);opacity:0} }
+    .geo-card { backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px); }
+    .leaflet-container { background:#0d0d0f !important; }
+  `;
+
+  const mapCenter = [centroid.lat, centroid.lng];
+
+  return (
+    <div className="mt-8" dir="rtl" style={{ fontFamily:"'Cairo',sans-serif" }}>
+      <style>{styleTag}</style>
+
+      {/* Section header */}
+      <div className="flex items-center justify-between mb-5" style={{ borderBottom:'1px solid rgba(212,175,55,0.15)', paddingBottom:16 }}>
+        <div className="flex items-center gap-3">
+          <div style={{ width:36, height:36, borderRadius:10, background:'linear-gradient(135deg,#1a1500,#2a2000)', border:'1px solid rgba(212,175,55,0.3)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <span className="material-symbols-outlined" style={{ fontSize:18, color:GEO_GOLD }}>travel_explore</span>
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-gray-900" style={{ margin:0 }}>خريطة التوزيع الجغرافي للطلبات</h2>
+            <p className="text-xs text-gray-400" style={{ margin:0 }}>
+              {loading ? 'جارٍ تحميل البيانات…' : geoTotal ? `${geoTotal} طلب بإحداثيات — ${zones.length} منطقة نشطة` : 'لا توجد بيانات جغرافية بعد'}
+            </p>
+          </div>
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          {[
+            { icon:'my_location', label:avgRadius ? `${avgRadius} كم` : '—', sub:'نطاق التوصيل' },
+            { icon:'schedule',    label:avgTravelMin ? `${avgTravelMin} د` : '—', sub:'وقت التنقل' },
+            { icon:'location_city', label:zones.length || '—', sub:'مناطق نشطة' },
+          ].map((k,i) => (
+            <div key={i} style={{ background:'rgba(212,175,55,0.06)', border:'1px solid rgba(212,175,55,0.18)', borderRadius:12, padding:'8px 14px', textAlign:'center', minWidth:90 }}>
+              <span className="material-symbols-outlined" style={{ color:GEO_GOLD, fontSize:14, display:'block' }}>{k.icon}</span>
+              <p style={{ fontSize:14, fontWeight:800, color:'#1a1a1a', margin:'1px 0 0' }}>{k.label}</p>
+              <p style={{ fontSize:9, color:'#999', margin:0 }}>{k.sub}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {!loading && !geoReqs.length && (
+        <div style={{ background:'rgba(212,175,55,0.04)', border:'1px dashed rgba(212,175,55,0.2)', borderRadius:16, padding:32, textAlign:'center' }}>
+          <span className="material-symbols-outlined" style={{ fontSize:40, color:GEO_GOLD, opacity:.3, display:'block', marginBottom:10 }}>location_off</span>
+          <p style={{ color:'#aaa', fontSize:13, margin:0 }}>لا توجد طلبات بإحداثيات جغرافية بعد.</p>
+          <p style={{ color:'#ccc', fontSize:11, marginTop:4 }}>ستظهر البيانات تلقائياً عند تحديد الموقع في نموذج الطلب.</p>
+        </div>
+      )}
+
+      {/* Main grid */}
+      {(geoReqs.length > 0 || loading) && (
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:16, alignItems:'start' }}>
+
+        {/* Map */}
+        <div style={{ border:'1px solid rgba(212,175,55,0.2)', borderRadius:16, overflow:'hidden', height:420, position:'relative', boxShadow:'0 4px 24px rgba(0,0,0,0.08)' }}>
+          <MapContainer
+            key={`${mapCenter[0]},${mapCenter[1]}`}
+            center={mapCenter} zoom={geoReqs.length ? 12 : 11}
+            style={{ width:'100%', height:'100%' }}
+            zoomControl={false}
+            whenReady={(e) => { mapRef.current = e.target; }}
+          >
+            <TileLayer
+              url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+              attribution='&copy; CARTO'
+              maxZoom={19}
+            />
+
+            {/* Cluster zone markers */}
+            {zones.map((z, i) => {
+              const sz = 10 + Math.round((z.orders / maxOrders) * 30);
+              return (
+                <Marker
+                  key={`zone-${i}`}
+                  position={[z.lat, z.lng]}
+                  icon={window.L ? window.L.divIcon({
+                    html: `<div style="
+                      width:${sz}px;height:${sz}px;border-radius:50%;
+                      background:radial-gradient(circle at 35% 35%,#f0d060,#D4AF37);
+                      border:2px solid rgba(255,255,255,0.5);
+                      box-shadow:0 0 ${sz}px #D4AF3799,0 0 ${sz*2}px #D4AF3744;
+                      ${z.orders >= 3 ? 'animation:geo-pulse 2.5s ease-out infinite;' : ''}
+                      display:flex;align-items:center;justify-content:center;
+                      font-size:${sz > 22 ? 10 : 8}px;font-weight:800;color:#3a2800;
+                    ">${z.orders > 1 ? z.orders : ''}</div>`,
+                    className:'', iconSize:[sz,sz], iconAnchor:[sz/2,sz/2],
+                  }) : undefined}
+                  eventHandlers={{ click:() => setActiveZone(z), mouseover:() => setActiveZone(z) }}
+                >
+                  <Popup>
+                    <div style={{ fontFamily:"'Cairo',sans-serif", direction:'rtl', minWidth:150 }}>
+                      <p style={{ fontWeight:800, marginBottom:4, color:'#1a1400', fontSize:13 }}>{z.name}</p>
+                      <p style={{ fontSize:11, margin:'2px 0', color:'#555' }}>الطلبات: <b style={{ color:'#D4AF37' }}>{z.orders}</b></p>
+                      <p style={{ fontSize:11, margin:0, color:'#555' }}>الإيرادات: <b>{formatCurrency(z.revenue)}</b></p>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+
+            {/* Individual client dots */}
+            {geoReqs.map((r, i) => (
+              <Marker
+                key={`req-${i}`}
+                position={[r.latitude, r.longitude]}
+                icon={window.L ? window.L.divIcon({
+                  html:`<div style="width:7px;height:7px;border-radius:50%;background:#fff;border:1.5px solid #D4AF37;box-shadow:0 0 5px #D4AF3766;"></div>`,
+                  className:'', iconSize:[7,7], iconAnchor:[3.5,3.5],
+                }) : undefined}
+              >
+                <Popup>
+                  <div style={{ fontFamily:"'Cairo',sans-serif", direction:'rtl', fontSize:12 }}>
+                    <b style={{ color:'#1a1400' }}>{r.clientName || '—'}</b>
+                    <p style={{ margin:'2px 0 0', color:'#888', fontSize:10 }}>{r.confirmationNumber}</p>
+                    {r.address && <p style={{ margin:'2px 0 0', color:'#aaa', fontSize:10 }}>{r.address}</p>}
+                    {r.estimatedPrice && <p style={{ margin:'4px 0 0', color:'#D4AF37', fontWeight:700, fontSize:11 }}>{formatCurrency(r.estimatedPrice)}</p>}
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+
+          {/* Legend */}
+          <div style={{ position:'absolute', bottom:16, left:16, zIndex:800, background:'rgba(13,13,15,0.88)', backdropFilter:'blur(12px)', border:`1px solid ${GEO_BORDER}`, borderRadius:12, padding:'10px 14px' }}>
+            <p style={{ fontSize:9, color:GEO_GOLD, fontWeight:700, letterSpacing:1, marginBottom:8 }}>المفتاح</p>
+            {[
+              { color:GEO_GOLD, size:20, label:'منطقة — حجم كبير' },
+              { color:GEO_GOLD, size:12, label:'منطقة — حجم متوسط' },
+              { color:'#fff',   size:7,  label:'طلب فردي' },
+            ].map((l,i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:8, marginBottom:i<2?5:0 }}>
+                <div style={{ width:l.size, height:l.size, borderRadius:'50%', background:l.color, border:'1.5px solid rgba(255,255,255,0.35)', boxShadow:`0 0 ${l.size}px ${l.color}88`, flexShrink:0 }} />
+                <span style={{ fontSize:10, color:'rgba(255,255,255,0.5)' }}>{l.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sidebar */}
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+
+          {/* Top Zones */}
+          <div style={{ background:'#fff', border:'1px solid #f0e8cc', borderRadius:14, padding:'16px 18px', boxShadow:'0 1px 8px rgba(0,0,0,0.04)' }}>
+            <p style={{ fontSize:11, color:GEO_GOLD, fontWeight:700, letterSpacing:.8, marginBottom:12 }}>
+              <span className="material-symbols-outlined" style={{ fontSize:13, verticalAlign:'middle', marginLeft:5 }}>emoji_events</span>
+              المناطق الأكثر نشاطاً
+            </p>
+            {top3.length === 0 && <p style={{ fontSize:11, color:'#ccc', textAlign:'center', margin:'10px 0' }}>لا بيانات بعد</p>}
+            {top3.map((z, i) => {
+              const pct = Math.round((z.orders / top3[0].orders) * 100);
+              return (
+                <div key={z.name} style={{ marginBottom: i < top3.length-1 ? 12 : 0 }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+                    <span style={{ fontSize:12, color:'#444', maxWidth:140, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {['🥇','🥈','🥉'][i]} {z.name}
+                    </span>
+                    <div>
+                      <span style={{ fontSize:13, fontWeight:800, color:GEO_GOLD }}>{z.orders}</span>
+                      <span style={{ fontSize:9, color:'#bbb', marginRight:3 }}>طلب</span>
+                    </div>
+                  </div>
+                  <div style={{ height:3, borderRadius:99, background:'#f3f3f3' }}>
+                    <div style={{ height:'100%', borderRadius:99, width:`${pct}%`, background:`linear-gradient(90deg,${GEO_GOLD},${GEO_GOLD2})`, transition:'width 1s ease' }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Zone detail on click */}
+          {activeZone && (
+            <div style={{ background:'linear-gradient(135deg,#fdf8ec,#fffdf5)', border:`1px solid ${GEO_GOLD}44`, borderRadius:14, padding:'14px 16px' }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                <p style={{ fontSize:13, fontWeight:800, color:'#1a1400', margin:0 }}>{activeZone.name}</p>
+                <button onClick={() => setActiveZone(null)} style={{ background:'none', border:'none', color:'#ccc', cursor:'pointer', padding:0 }}>
+                  <span className="material-symbols-outlined" style={{ fontSize:15 }}>close</span>
+                </button>
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginTop:10 }}>
+                {[
+                  { label:'الطلبات',       value: activeZone.orders },
+                  { label:'الإيرادات',     value: formatCurrency(activeZone.revenue) },
+                  { label:'الحصة السوقية', value: `${totalOrders ? Math.round((activeZone.orders/totalOrders)*100) : 0}٪` },
+                  { label:'التصنيف',       value: `#${zones.findIndex(z=>z.lat===activeZone.lat&&z.lng===activeZone.lng)+1}` },
+                ].map((kpi,i) => (
+                  <div key={i} style={{ background:'rgba(212,175,55,0.07)', borderRadius:8, padding:'7px 10px' }}>
+                    <p style={{ fontSize:9, color:'#999', margin:'0 0 2px' }}>{kpi.label}</p>
+                    <p style={{ fontSize:13, fontWeight:800, color:GEO_GOLD, margin:0 }}>{kpi.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* AI Insight */}
+          <div style={{ background:'linear-gradient(135deg,#fdf9ed,#fffef8)', border:`1px solid ${GEO_GOLD}33`, borderRadius:14, padding:'16px 18px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
+              <div style={{ width:28, height:28, borderRadius:8, background:`linear-gradient(135deg,${GEO_GOLD}22,${GEO_GOLD}08)`, border:`1px solid ${GEO_GOLD}33`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <span className="material-symbols-outlined" style={{ fontSize:14, color:GEO_GOLD }}>auto_awesome</span>
+              </div>
+              <div>
+                <p style={{ fontSize:10, color:GEO_GOLD, fontWeight:700, margin:0 }}>تحليل تلقائي</p>
+                <p style={{ fontSize:9, color:'#bbb', margin:0 }}>{geoTotal} طلب بإحداثيات</p>
+              </div>
+            </div>
+            <p style={{ fontSize:11, lineHeight:1.85, color:'#555', margin:0 }}>{aiInsight}</p>
+            {avgRadius > 20 && (
+              <div style={{ marginTop:12, padding:'7px 10px', borderRadius:8, background:`${GEO_GOLD}0d`, border:`1px solid ${GEO_GOLD}1a`, display:'flex', alignItems:'center', gap:6 }}>
+                <span className="material-symbols-outlined" style={{ fontSize:13, color:GEO_GOLD }}>trending_down</span>
+                <p style={{ fontSize:10, color:GEO_GOLD, margin:0, fontWeight:600 }}>توفير لوجستي متوقع: ~15–20٪</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      )}
     </div>
   );
 };

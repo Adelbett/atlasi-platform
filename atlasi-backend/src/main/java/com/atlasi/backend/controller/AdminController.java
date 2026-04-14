@@ -42,9 +42,11 @@ public class AdminController {
                 .orElseThrow(() -> new RuntimeException("Request not found"));
         
         request.setStatus("Confirmée");
-        // Generate unique confirmation number
-        String randomSuffix = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
-        request.setConfirmationNumber("ATL-2024-" + randomSuffix);
+        // Keep existing confirmationNumber if already set by the client
+        if (request.getConfirmationNumber() == null || request.getConfirmationNumber().isBlank()) {
+            String randomSuffix = UUID.randomUUID().toString().substring(0, 4).toUpperCase();
+            request.setConfirmationNumber("ATL-" + randomSuffix);
+        }
         
         return requestRepository.save(request);
     }

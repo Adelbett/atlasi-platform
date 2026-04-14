@@ -32,7 +32,7 @@ const projectCards = [
 const loyaltySteps = [
   { num: '🥇', title: 'الطلب الثاني', sub: 'خصم 5%' },
   { num: '🥈', title: 'الطلب الثالث', sub: 'خصم 5%' },
-  { num: '🥉', title: 'الطلب الرابع', sub: 'خصم 5%' },
+  { num: '🥉', title: 'الطلب الرابع', sub: 'خصم 10%' },
   { num: '🏆', title: 'الطلب الخامس', sub: 'خصم 50% — نصف السعر', highlight: true },
 ];
 
@@ -184,6 +184,7 @@ const Landing = () => {
             <span className="material-symbols-outlined transition-transform group-hover:-translate-x-1">arrow_back</span>
           </button>
 
+
           {/* Dot indicators */}
           <div className="flex gap-2 mt-6">
             {heroImages.map((_, i) => (
@@ -207,7 +208,7 @@ const Landing = () => {
               <span className="material-symbols-outlined text-gold-accent text-3xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified_user</span>
             </div>
             <div className="text-right">
-              <p className="font-bold text-[#1c1b1b] text-base leading-tight">الضمان الفضي: 2 سنوات</p>
+              <p className="font-bold text-base leading-tight" style={{color: '#C4C4C4'}}>الضمان الفضي: 2 سنوات</p>
               <p className="font-bold text-gold-accent text-base leading-tight mt-0.5">الضمان الذهبي: 5 سنوات</p>
               <p className="text-secondary text-[10px] mt-1 pr-0.5">جودة معتمدة وخدمة شاملة</p>
             </div>

@@ -78,6 +78,17 @@ public class AuthController {
         }
     }
 
+    private AdminUser resolveAuthenticatedAdmin(HttpServletRequest request) {
+        String idHeader = request.getHeader("X-Admin-Id");
+        if (idHeader == null || idHeader.isBlank()) return null;
+        try {
+            Long callerId = Long.parseLong(idHeader.trim());
+            return adminUserRepository.findById(callerId).orElse(null);
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
     private Map<String, Object> adminToMap(AdminUser a) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id",       a.getId());
@@ -116,6 +127,20 @@ public class AuthController {
     }
 
     // ── Admin CRUD (MAIN_ADMIN only) ─────────────────────────────────
+
+    @GetMapping("/staff")
+    public ResponseEntity<?> getStaff(HttpServletRequest request) {
+        if (resolveAuthenticatedAdmin(request) == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "success", false, "message", "Missing or invalid X-Admin-Id header"));
+        }
+
+        List<Map<String, Object>> list = adminUserRepository.findAll()
+                .stream()
+                .map(this::adminToMap)
+                .toList();
+        return ResponseEntity.ok(list);
+    }
 
     @GetMapping("/admins")
     public ResponseEntity<?> getAdmins(HttpServletRequest request) {

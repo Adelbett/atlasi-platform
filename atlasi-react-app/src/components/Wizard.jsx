@@ -36,7 +36,11 @@ const buildOrderId = (modelCode, customerName) => {
   const code = (modelCode || 'ATL').replace(/-/g, '');
   const firstName = (customerName || 'CLIENT').split(' ')[0].toUpperCase();
   const d = new Date();
-  const date = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const year = String(d.getFullYear()).slice(2); // "26" from "2026"
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hour = String(d.getHours()).padStart(2, '0');
+  const date = `${year}${month}${day}${hour}`;
   return `${code}-${firstName}-${date}`;
 };
 
@@ -503,8 +507,8 @@ const Step3 = () => {
   const d = design === 'sahara' ? 'sahra' : (design || 'sahra');
   const dims = DIMS[d] || DIMS.sahra;
   const options = [
-    { id: 'single', label: dims.single, icon: 'directions_car' },
-    { id: 'double', label: dims.double, icon: 'airport_shuttle' },
+    { id: 'single', title: 'سيارة واحدة', dim: dims.single, icon: 'directions_car' },
+    { id: 'double', title: 'سيارتين', dim: dims.double, icon: 'airport_shuttle' },
   ];
   const previewImg = getImageName(design, size, fixation || 'column', color || 'beige');
 
@@ -546,7 +550,8 @@ const Step3 = () => {
                 <span className="material-symbols-outlined text-2xl md:text-3xl">{o.icon}</span>
               </div>
               <div className="flex-grow">
-                <h3 className="text-base md:text-lg font-bold mb-1">{o.label}</h3>
+                <h3 className="text-base md:text-lg font-bold leading-tight">{o.title}</h3>
+                <p className="text-xs text-secondary mt-0.5">{o.dim}</p>
               </div>
               <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${size === o.id ? 'border-[#1c1b1b] bg-[#1c1b1b]' : 'border-outline-variant'}`}>
                 {size === o.id && <div className="w-2 h-2 bg-white rounded-full" />}
@@ -723,7 +728,6 @@ const Step6 = () => {
   const hasDiscount = loyaltyDiscount > 0 && priceData;
   const discountedMin = hasDiscount ? Math.round(priceData.sellMin * (1 - loyaltyDiscount)) : null;
   const discountedMax = hasDiscount ? Math.round(priceData.sellMax * (1 - loyaltyDiscount)) : null;
-  const colorLabel = color === 'noir' ? 'أسود' : 'بيج';
 
   const confirmCancel = async () => {
     const snapshot = { customerName, customerPhone, design, size, fixation, color, status: 'ملغى' };
@@ -771,17 +775,18 @@ const Step6 = () => {
             <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
               <div>
                 <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">هيكل</span>
-                <p className="text-base md:text-lg font-semibold">أسود</p>
+                <p className="text-base md:text-lg font-semibold">{color === 'noir' ? 'أسود' : 'بيج'}</p>
               </div>
-              <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm bg-[#1A1A1A]" />
+              <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
+                style={{ backgroundColor: color === 'noir' ? '#1A1A1A' : '#F5F5DC' }} />
             </div>
             <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
               <div>
                 <span className="text-[10px] text-zinc-500 font-bold tracking-widest block mb-1">قماش</span>
-                <p className="text-base md:text-lg font-semibold">{colorLabel}</p>
+                <p className="text-base md:text-lg font-semibold">بيج</p>
               </div>
               <div className="w-8 h-8 rounded-full border-2 border-white shadow-sm"
-                style={{ backgroundColor: color === 'noir' ? '#1A1A1A' : '#F5F5DC' }} />
+                style={{ backgroundColor: '#F5F5DC' }} />
             </div>
             {design !== 'sahara' && (
               <div className="flex justify-between items-start border-b border-outline-variant/10 pb-4">
@@ -925,7 +930,9 @@ const Step7 = () => {
       ? `https://maps.google.com/?q=${latitude},${longitude}`
       : '';
 
+    const generatedId = buildOrderId(modelCode, customerName);
     const orderData = {
+      confirmationNumber: generatedId,
       clientName: customerName,
       clientPhone: safePhone,
       designType: design,
@@ -951,17 +958,17 @@ const Step7 = () => {
 
       if (response.ok) {
         const result = await response.json();
-        const finalId = result.confirmationNumber || buildOrderId(modelCode, customerName);
+        const finalId = result.confirmationNumber || generatedId;
         updateField('finalId', finalId);
         setStep(8);
       } else {
         console.error('Failed to submit order');
-        updateField('finalId', buildOrderId(modelCode, customerName));
+        updateField('finalId', generatedId);
         setStep(8);
       }
     } catch (error) {
       console.error('Error submitting order:', error);
-      updateField('finalId', buildOrderId(modelCode, customerName));
+      updateField('finalId', generatedId);
       setStep(8);
     } finally {
       setIsSubmitting(false);
@@ -1073,7 +1080,7 @@ const Confirmation = () => {
 
   const designLabel = design === 'malaki' ? 'ملكي' : design === 'neom' ? 'نيوم' : 'صحراء';
   const sizeLabel = getSizeLabel(design, size);
-  const colorLabel = color === 'noir' ? 'أسود' : 'بيج ';
+  const colorLabel = color === 'noir' ? 'أسود' : 'بيج';
   const fixationLabel = fixation === 'wall' ? 'معلقة على الجدار' : 'على أعمدة';
 
   return (
@@ -1166,7 +1173,7 @@ const Confirmation = () => {
             {/* أزرار الإجراء */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <a
-                href="https://wa.me/966548105757"
+                href="https://wa.me/966504824968"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-full sm:w-auto min-w-[220px] px-6 md:px-8 py-4 bg-[#25D366] text-white rounded-xl font-bold text-sm flex items-center justify-center gap-3 hover:bg-[#20bd5a] transition-all active:scale-95 shadow-lg min-h-[52px]"
