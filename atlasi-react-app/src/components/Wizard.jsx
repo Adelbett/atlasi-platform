@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useStore } from '../store';
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 
 const PRICES = {
@@ -127,15 +127,6 @@ const MapCenterer = ({ position }) => {
   return null;
 };
 
-const MapPositionTracker = ({ onMove }) => {
-  useMapEvents({
-    moveend(e) {
-      const center = e.target.getCenter();
-      onMove([center.lat, center.lng]);
-    }
-  });
-  return null;
-};
 
 const WizardStyles = () => (
   <style>{`
@@ -302,7 +293,7 @@ const Step1 = () => {
   useEffect(() => {
     if (!isValidSaudiPhone(customerPhone)) { setLoyaltyStatus(null); return; }
     const phone = normalizeSaudiPhone(customerPhone);
-    fetch(`http://localhost:8080/api/loyalty/status/${phone}`)
+    fetch(`/api/loyalty/status/${phone}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data) {
@@ -732,7 +723,7 @@ const Step6 = () => {
   const confirmCancel = async () => {
     const snapshot = { customerName, customerPhone, design, size, fixation, color, status: 'ملغى' };
     try {
-      await fetch('http://localhost:8080/api/admin/requests', {
+      await fetch('/api/admin/requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(snapshot)
@@ -751,14 +742,31 @@ const Step6 = () => {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-8">
-        <div className="lg:col-span-7 h-64 md:h-[500px] rounded-xl overflow-hidden shadow-sm relative">
-          <img alt="معاينة التصميم" className="w-full h-full object-cover" src={`/image/${previewImg}`} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-          <div className="absolute bottom-6 right-6 text-white">
-            <p className="tracking-widest text-[10px] opacity-80 mb-1">التصميم المختار</p>
-            <h2 className="text-xl md:text-2xl font-bold">
-              {design === 'malaki' ? 'ملكي' : design === 'neom' ? 'نيوم' : 'صحراء'}
-            </h2>
+        <div className="lg:col-span-7 flex flex-col gap-4">
+          <div className="h-64 md:h-[380px] rounded-xl overflow-hidden shadow-sm relative mt-0 lg:mt-16">
+            <img alt="معاينة التصميم" className="w-full h-full object-cover" src={`/image/${previewImg}`} />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+            <div className="absolute bottom-6 right-6 text-white">
+              <p className="tracking-widest text-[10px] opacity-80 mb-1">التصميم المختار</p>
+              <h2 className="text-xl md:text-2xl font-bold">
+                {design === 'malaki' ? 'ملكي' : design === 'neom' ? 'نيوم' : 'صحراء'}
+              </h2>
+            </div>
+          </div>
+          {/* أزرار تحت الصورة - desktop */}
+          <div className="hidden lg:flex flex-col gap-3">
+            <button onClick={nextStep} className="w-full py-5 px-7 rounded-2xl gold-gradient text-white font-extrabold text-lg shadow-xl transition-all duration-300 hover:brightness-105 hover:shadow-2xl flex items-center justify-center gap-3 min-h-[64px]">
+              <span>تأكيد ومعاينة الموقع</span>
+              <span className="material-symbols-outlined text-[22px]">arrow_back</span>
+            </button>
+            <div className="flex gap-3">
+              <button onClick={prevStep} className="flex-1 py-4 rounded-xl border-2 border-outline-variant/25 bg-white/80 text-secondary hover:bg-white transition-all duration-300 flex items-center justify-center min-h-[56px] font-bold text-base shadow-md hover:shadow-lg">
+                تعديل الطلب
+              </button>
+              <button onClick={() => setShowCancelModal(true)} className="flex-1 py-4 rounded-xl border-2 border-red-200/90 bg-red-50/30 text-red-600 hover:bg-red-50 transition-all duration-300 flex items-center justify-center min-h-[56px] font-bold text-base shadow-md hover:shadow-lg">
+                إلغاء الطلب
+              </button>
+            </div>
           </div>
         </div>
 
@@ -819,6 +827,12 @@ const Step6 = () => {
                         خصم ولاء {Math.round(loyaltyDiscount * 100)}% مطبق تلقائياً
                       </span>
                     )}
+                    <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50/80 px-4 py-3 flex items-center gap-3 text-amber-900">
+                      <span className="material-symbols-outlined text-2xl text-amber-700 shrink-0">warning</span>
+                      <p className="text-xs md:text-sm font-semibold leading-relaxed">
+                        سيتم تزويدك بالمبلغ النهائي بدقة بعد زيارة المندوب ورفع القياسات
+                      </p>
+                    </div>
                   </>
                 ) : (
                   <p className="text-xl md:text-2xl font-extrabold text-[#735c00]">يُحدد بعد الزيارة</p>
@@ -826,38 +840,34 @@ const Step6 = () => {
               </div>
               <span className="material-symbols-outlined text-[#735c00]/40 text-3xl flex-shrink-0">payments</span>
             </div>
+            {/* وسائل الدفع */}
+            <div className="border-t border-outline-variant/10 pt-4 flex flex-col items-center gap-3 text-center">
+              <p className="text-[11px] font-bold tracking-widest text-secondary">وسائل الدفع المتاحة</p>
+              <p className="text-xs text-[#735c00] flex items-center gap-1.5">
+                <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
+                يمكنك الدفع على 4 مراحل
+              </p>
+              <img
+                src="/image/tabay-tamara.jpg"
+                alt="Tabby & Tamara"
+                className="w-full max-w-[260px] object-contain rounded-lg"
+              />
+            </div>
           </div>
-
-          {/* وسائل الدفع */}
-          <div className="rounded-xl border border-outline-variant/20 bg-surface-container-lowest p-5 flex flex-col items-center gap-3 text-center">
-            <p className="text-[11px] font-bold tracking-widest text-secondary">وسائل الدفع المتاحة</p>
-            <p className="text-xs text-[#735c00] flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-base" style={{ fontVariationSettings: "'FILL' 1" }}>calendar_month</span>
-              يمكنك الدفع على 4 مراحل
-            </p>
-            <img
-              src="/image/tabay-tamara.jpg"
-              alt="Tabby & Tamara"
-              className="w-full max-w-[260px] object-contain rounded-lg"
-            />
-          </div>
-
-          {/* أزرار الإجراء */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <button onClick={nextStep} className="flex-1 py-4 md:py-5 px-6 rounded-xl gold-gradient text-white font-bold text-base shadow-lg transition-all flex items-center justify-center gap-3 min-h-[52px]">
+          {/* أزرار mobile فقط */}
+          <div className="lg:hidden flex flex-col gap-3">
+            <button onClick={nextStep} className="w-full py-4 px-4 rounded-xl gold-gradient text-white font-extrabold text-sm shadow-lg transition-all duration-300 hover:brightness-105 flex items-center justify-center gap-2 min-h-[52px]">
               <span>تأكيد ومعاينة الموقع</span>
-              <span className="material-symbols-outlined">arrow_back</span>
+              <span className="material-symbols-outlined text-[18px]">arrow_back</span>
             </button>
-            <button onClick={prevStep} className="w-full sm:w-14 py-4 md:py-5 rounded-xl border-2 border-outline-variant/30 text-secondary hover:bg-white transition-all flex items-center justify-center min-h-[52px]">
-              <span className="material-symbols-outlined">edit</span>
-            </button>
-            <button
-              onClick={() => setShowCancelModal(true)}
-              className="w-full sm:w-14 py-4 md:py-5 rounded-xl border-2 border-red-200 text-red-500 hover:bg-red-50 transition-all flex items-center justify-center min-h-[52px]"
-              title="إلغاء الطلب"
-            >
-              <span className="material-symbols-outlined">cancel</span>
-            </button>
+            <div className="flex gap-3">
+              <button onClick={prevStep} className="flex-1 py-4 rounded-xl border-2 border-outline-variant/25 bg-white/80 text-secondary hover:bg-white transition-all duration-300 flex items-center justify-center min-h-[52px] font-bold text-sm shadow-sm">
+                تعديل الطلب
+              </button>
+              <button onClick={() => setShowCancelModal(true)} className="flex-1 py-4 rounded-xl border-2 border-red-200/90 bg-red-50/30 text-red-600 hover:bg-red-50 transition-all duration-300 flex items-center justify-center min-h-[52px] font-bold text-sm shadow-sm">
+                إلغاء الطلب
+              </button>
+            </div>
           </div>
 
           {/* ── Popup تأكيد الإلغاء ── */}
@@ -901,6 +911,8 @@ const Step7 = () => {
   const { address, updateField, setStep, customerName } = useStore();
   const [position, setPosition] = useState([24.7136, 46.6753]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [mapActive, setMapActive] = useState(false);
+  const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
 
   const handleAutoLocate = () => {
     if ("geolocation" in navigator) {
@@ -948,7 +960,7 @@ const Step7 = () => {
     };
 
     try {
-      const response = await fetch('http://localhost:8080/api/admin/requests', {
+      const response = await fetch('/api/admin/requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -986,44 +998,86 @@ const Step7 = () => {
           <MapContainer
             center={position}
             zoom={13}
-            scrollWheelZoom={true}
+            scrollWheelZoom={false}
+            dragging={!isMobile || mapActive}
+            touchZoom={!isMobile || mapActive}
             style={{ width: '100%', height: '420px' }}
           >
             <TileLayer
               attribution='Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
             />
-            <Marker position={position} icon={new L.Icon({
-              iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-              iconSize: [25, 41],
-              iconAnchor: [12, 41]
-            })} />
+            <Marker
+              position={position}
+              draggable={true}
+              eventHandlers={{
+                dragend(e) {
+                  const latlng = e.target.getLatLng();
+                  setPosition([latlng.lat, latlng.lng]);
+                  updateField('address', `GPS(${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)})`);
+                }
+              }}
+              icon={L.divIcon({
+                className: '',
+                iconAnchor: [22, 54],
+                html: `
+                  <div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 4px 12px rgba(0,0,0,0.4))">
+                    <div style="width:44px;height:44px;background:linear-gradient(135deg,#735c00,#d4af37);border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid white;cursor:grab">
+                      <span class="material-symbols-outlined" style="color:white;font-size:22px;font-variation-settings:'FILL' 1">location_on</span>
+                    </div>
+                    <div style="width:10px;height:10px;background:#735c00;transform:rotate(45deg);margin-top:-5px;border-right:3px solid white;border-bottom:3px solid white"></div>
+                  </div>
+                `
+              })}
+            />
             <MapCenterer position={position} />
-            <MapPositionTracker onMove={setPosition} />
           </MapContainer>
 
-          {/* مؤشر الموقع */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center pointer-events-none" style={{ zIndex: 500 }}>
-            <div className="relative">
-              <div className="w-12 h-12 bg-gradient-to-br from-[#735c00] to-[#d4af37] rounded-full flex items-center justify-center shadow-xl border-4 border-white">
-                <span className="material-symbols-outlined text-white" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
-              </div>
-              <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-[#735c00] rotate-45 border-r-4 border-b-4 border-white" style={{ zIndex: -1 }} />
-            </div>
-            <div className="mt-4 px-4 py-2 bg-white/90 rounded-xl shadow-lg border border-outline-variant/20">
-              <span className="text-on-surface font-semibold text-sm">موقع التركيب المختار</span>
+          {/* تلميح السحب — يظهر لثوانٍ ثم يختفي */}
+          <div className="absolute top-3 right-3 pointer-events-none" style={{ zIndex: 500 }}>
+            <div className="bg-white/95 rounded-xl px-3 py-2 shadow-lg flex items-center gap-2 border border-outline-variant/20">
+              <span className="material-symbols-outlined text-[#735c00] text-base">open_with</span>
+              <span className="text-xs font-bold text-on-surface">اسحب الدبوس لتحديد موقعك</span>
             </div>
           </div>
+
+          {/* Mobile overlay — tap to activate map */}
+          {isMobile && !mapActive && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 cursor-pointer"
+              style={{ zIndex: 600, background: 'rgba(0,0,0,0.35)', backdropFilter: 'blur(2px)' }}
+              onClick={() => setMapActive(true)}
+            >
+              <div className="bg-white/95 rounded-2xl px-6 py-4 text-center shadow-xl flex flex-col items-center gap-2">
+                <span className="material-symbols-outlined text-3xl text-[#735c00]">open_with</span>
+                <p className="text-sm font-bold text-on-surface">انقر ثم اسحب الدبوس</p>
+                <p className="text-[10px] text-secondary">حرّك أيقونة الموقع لمكانك الصحيح</p>
+              </div>
+            </div>
+          )}
 
           {/* زر تحديد الموقع التلقائي */}
           <div className="absolute bottom-6 right-6 flex flex-col gap-2" style={{ zIndex: 500 }}>
             <button
               onClick={handleAutoLocate}
               className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center text-on-surface-variant hover:text-primary transition-all shadow-lg border border-outline-variant/15"
+              title="تحديد موقعي تلقائياً"
             >
               <span className="material-symbols-outlined">my_location</span>
             </button>
           </div>
+          {/* زر إنهاء التفاعل مع الخريطة — موبايل فقط */}
+          {isMobile && mapActive && (
+            <div className="absolute bottom-6 left-3 flex flex-col gap-2" style={{ zIndex: 600 }}>
+              <button
+                onClick={() => setMapActive(false)}
+                className="h-9 px-3 bg-white/95 rounded-full flex items-center gap-1.5 text-xs font-bold text-secondary shadow-lg border border-outline-variant/20"
+              >
+                <span className="material-symbols-outlined text-base">close</span>
+                إنهاء التفاعل
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -1052,13 +1106,6 @@ const Step7 = () => {
         </div>
 
         <div className="mt-auto pt-8 flex flex-col gap-4">
-          {/* تنبيه إلزامي قبل التأكيد */}
-          <div className="flex items-start gap-3 bg-amber-50 border border-amber-300 rounded-xl p-4 text-right">
-            <span className="material-symbols-outlined text-[#735c00] shrink-0 mt-0.5" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
-            <p className="text-xs leading-relaxed text-[#735c00] font-bold">
-               سيتم تزويدك بالمبلغ النهائي بدقة بعد زيارة المندوب ورفع القياسات
-            </p>
-          </div>
           <button
             onClick={submitOrder}
             disabled={isSubmitting}

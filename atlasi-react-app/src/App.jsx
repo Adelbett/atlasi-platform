@@ -8,8 +8,6 @@ import Header from './components/Header';
 import Footer from './components/Footer';
 import { FiMessageCircle } from 'react-icons/fi';
 
-import MobileNav from './components/MobileNav';
-
 function App() {
   const currentStep = useStore(state => state.currentStep);
 
@@ -44,18 +42,12 @@ function App() {
 
       {currentStep === 0 && <Footer />}
 
-      {/* Mobile Footer Spacing for BottomNav */}
-      <div className="h-24 md:hidden"></div>
-
-      {/* Bottom Navigation for Mobile */}
-      <MobileNav />
-
       {/* Floating WhatsApp - Hidden on mobile if bottom nav exists, or moved up */}
       <a 
         href="https://wa.me/966548105757" 
         target="_blank"
         rel="noopener noreferrer"
-        className="fixed bottom-24 md:bottom-8 left-4 bg-[#25D366] w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center shadow-xl z-[40] text-white text-3xl transition-transform hover:scale-110"
+        className="fixed bottom-8 left-4 bg-[#25D366] w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center shadow-xl z-[40] text-white text-3xl transition-transform hover:scale-110"
       >
         <FiMessageCircle />
       </a>

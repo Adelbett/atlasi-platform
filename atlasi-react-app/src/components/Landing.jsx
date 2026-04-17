@@ -49,7 +49,7 @@ const Landing = () => {
   const setStep = useStore(state => state.setStep);
   const [heroIndex, setHeroIndex] = useState(0);
   const [activeIdx, setActiveIdx] = useState(0);   // real index 0–19
-  const [scrollPct, setScrollPct] = useState(0);
+
   const [paused, setPaused] = useState(false);
 
   const scrollRef = useRef(null);
@@ -100,7 +100,6 @@ const Landing = () => {
     const loopedI = getLoopedIdxFromScroll();
     const realIdx = (loopedI - CLONE + TOTAL) % TOTAL;
     setActiveIdx(realIdx);
-    setScrollPct(realIdx / (TOTAL - 1));
 
     // Debounce the loop teleport so it fires after scroll settles
     clearTimeout(loopTimerRef.current);
@@ -279,31 +278,6 @@ const Landing = () => {
           </div>
         </div>
 
-        {/* Nav: arrows (toujours actifs — loop infini) + barre de progression */}
-        <div className="flex items-center justify-center gap-5 mt-6 px-6">
-          <button
-            onClick={() => scrollToIndex((activeIdx - 1 + TOTAL) % TOTAL)}
-            className="w-9 h-9 rounded-full border border-outline-variant/40 flex items-center justify-center text-secondary hover:bg-white hover:border-[#735c00] hover:text-[#735c00] transition-all"
-          >
-            <span className="material-symbols-outlined text-[18px]">chevron_right</span>
-          </button>
-
-          <div className="luxe-progress-track flex-1 max-w-[200px]">
-            <div className="luxe-progress-fill" style={{ width: `${scrollPct * 100}%` }} />
-          </div>
-
-          <button
-            onClick={() => scrollToIndex((activeIdx + 1) % TOTAL)}
-            className="w-9 h-9 rounded-full border border-outline-variant/40 flex items-center justify-center text-secondary hover:bg-white hover:border-[#735c00] hover:text-[#735c00] transition-all"
-          >
-            <span className="material-symbols-outlined text-[18px]">chevron_left</span>
-          </button>
-        </div>
-
-        {/* Subtle counter */}
-        <p className="text-center text-[11px] text-secondary/60 mt-2 tracking-widest">
-          {activeIdx + 1} / {TOTAL}
-        </p>
       </section>
 
       {/* ── Golden Card Section ── */}

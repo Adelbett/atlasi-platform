@@ -19,7 +19,7 @@ import {
   ReferenceLine,
 } from 'recharts';
 
-const API = 'http://localhost:8080/api';
+const API = '/api';
 const APP_LOCALE = 'ar-SA-u-nu-latn';
 const ADMIN_AUTH_KEY    = 'atlasi_admin_auth';
 const ADMIN_AUTH_TS_KEY = 'atlasi_admin_auth_ts';
